@@ -1,31 +1,22 @@
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User
 from django.http import HttpResponse
 from .models import Produit, Recherche, SurveillancePrix
 from .serializers import (
     ProduitSerializer, RechercheSerializer,
-    SurveillancePrixSerializer, RegisterSerializer, UserSerializer
+    SurveillancePrixSerializer, RegisterSerializer
 )
-from .scraper import scrape_all
-import re, csv, threading
+from .scraper import scrape_jumia, scrape_avito, scrape_ebay, valider_categorie
+from .datamining import analyser_produits
+import re, csv, threading, uuid
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
-class ProduitViewSet(viewsets.ModelViewSet):
-    queryset         = Produit.objects.all()
-    serializer_class = ProduitSerializer
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from .models import Produit
-from .serializers import ProduitSerializer
-from .scraper import scrape_all
-import re
+_progression = {}
 
-# ── Clean price helper ───────────────────────
 def clean_price(prix_str):
     prix_clean = re.sub(r'[^\d.]', '', str(prix_str))
     try:
@@ -33,59 +24,153 @@ def clean_price(prix_str):
     except:
         return 0.0
 
-# ── ViewSet ──────────────────────────────────
+def _scrape_background(task_id, query, plateformes_list):
+    _progression[task_id] = {
+        'statut'     : 'en_cours',
+        'progression': 0,
+        'message'    : 'Démarrage...',
+        'resultats'  : []
+    }
+
+    try:
+        resultats = []
+        total     = len(plateformes_list)
+        fait      = 0
+
+        if 'jumia' in plateformes_list:
+            _progression[task_id]['message'] = 'Scraping Jumia...'
+            resultats += scrape_jumia(query)
+            fait += 1
+            _progression[task_id]['progression'] = int((fait / total) * 100)
+
+        if 'avito' in plateformes_list:
+            _progression[task_id]['message'] = 'Scraping Avito...'
+            resultats += scrape_avito(query)
+            fait += 1
+            _progression[task_id]['progression'] = int((fait / total) * 100)
+
+        if 'ebay' in plateformes_list:
+            _progression[task_id]['message'] = 'Scraping eBay...'
+            resultats += scrape_ebay(query)
+            fait += 1
+            _progression[task_id]['progression'] = int((fait / total) * 100)
+
+        # Sauvegarder en base
+        _progression[task_id]['message'] = 'Sauvegarde en base...'
+        saved = []
+        for r in resultats:
+            p = Produit.objects.create(
+                nom         = r['nom'],
+                description = r.get('description', ''),
+                prix        = clean_price(r['prix']),
+                categorie   = r.get('categorie', 'non_specifie'),
+                plateforme  = r['plateforme'],
+                url         = r['url']
+            )
+            saved.append(p)
+
+        _progression[task_id]['statut']      = 'termine'
+        _progression[task_id]['progression'] = 100
+        _progression[task_id]['message']     = f'{len(saved)} résultats trouvés'
+        _progression[task_id]['resultats']   = ProduitSerializer(saved, many=True).data
+
+    except Exception as e:
+        _progression[task_id]['statut']  = 'erreur'
+        _progression[task_id]['message'] = str(e)
+
+
 class ProduitViewSet(viewsets.ModelViewSet):
     queryset         = Produit.objects.all()
     serializer_class = ProduitSerializer
 
-    # GET /api/produits/search/?q=iphone
+    # GET /api/produits/search_async/?q=iphone&plateformes=jumia,ebay
     @action(detail=False, methods=['get'])
-    def search(self, request):
-        query = request.query_params.get('q', '')
+    def search_async(self, request):
+        query       = request.query_params.get('q', '')
+        plateformes = request.query_params.get('plateformes', 'jumia,avito,ebay')
 
-        # 1. Validate query
         if not query:
-            return Response(
-                {'error': 'Please provide a search term ?q='},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'Paramètre q manquant'}, status=400)
 
-        # 2. Scrape all platforms
-        print(f"🔍 Scraping for : {query}")
-        resultats = scrape_all(query)
+        # Valider catégorie téléphone ou laptop
+        valide, message = valider_categorie(query)
+        if not valide:
+            return Response({'error': message}, status=400)
 
-        if not resultats:
-            return Response(
-                {'error': 'No results found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        plateformes_list = [p.strip().lower() for p in plateformes.split(',')]
 
-        # 3. Save to database
-        saved = []
-        for r in resultats:
-            produit = Produit.objects.create(
-                nom        = r['nom'],
-                prix       = clean_price(r['prix']),
-                plateforme = r['plateforme'],
-                url        = r['url']
-            )
-            saved.append(produit)
+        # Historique
+        user = request.user if request.user.is_authenticated else None
+        Recherche.objects.create(utilisateur=user, produit=query)
 
-        # 4. Return results
-        serializer = ProduitSerializer(saved, many=True)
+        # Lancer en background
+        task_id = str(uuid.uuid4())
+        thread  = threading.Thread(
+            target = _scrape_background,
+            args   = (task_id, query, plateformes_list)
+        )
+        thread.daemon = True
+        thread.start()
+
         return Response({
-            'query'    : query,
-            'count'    : len(saved),
-            'results'  : serializer.data
+            'task_id'    : task_id,
+            'message'    : f'Scraping lancé pour : {query}',
+            'plateformes': plateformes_list
         })
 
-    # GET /api/produits/by_platform/
+    # GET /api/produits/progression/?task_id=xxx
+    @action(detail=False, methods=['get'])
+    def progression(self, request):
+        task_id = request.query_params.get('task_id', '')
+        if not task_id or task_id not in _progression:
+            return Response({'error': 'Task ID invalide'}, status=404)
+
+        data = _progression[task_id]
+        return Response({
+            'task_id'    : task_id,
+            'statut'     : data['statut'],
+            'progression': data['progression'],
+            'message'    : data['message'],
+            'resultats'  : data.get('resultats', [])
+        })
+
+    # GET /api/produits/analyser/?q=iphone
+    @action(detail=False, methods=['get'])
+    def analyser(self, request):
+        query    = request.query_params.get('q', '')
+        cat      = request.query_params.get('categorie', '')
+        produits = Produit.objects.all()
+
+        if query:
+            produits = produits.filter(nom__icontains=query)
+        if cat:
+            produits = produits.filter(categorie=cat)
+
+        if not produits.exists():
+            return Response({'error': 'Aucun produit à analyser'}, status=404)
+
+        resultats = analyser_produits(produits)
+        return Response(resultats)
+
+    # GET /api/produits/by_platform/?platform=Jumia
     @action(detail=False, methods=['get'])
     def by_platform(self, request):
         platform = request.query_params.get('platform', '')
         produits = Produit.objects.filter(plateforme=platform)
-        serializer = ProduitSerializer(produits, many=True)
-        return Response(serializer.data)
+        return Response(ProduitSerializer(produits, many=True).data)
+
+    # GET /api/produits/by_categorie/?cat=telephones
+    @action(detail=False, methods=['get'])
+    def by_categorie(self, request):
+        cat      = request.query_params.get('cat', '')
+        produits = Produit.objects.filter(categorie=cat)
+        return Response({
+            'categorie': cat,
+            'count'    : produits.count(),
+            'results'  : ProduitSerializer(produits, many=True).data
+        })
+
+    # GET /api/produits/export_csv/?q=iphone
     @action(detail=False, methods=['get'])
     def export_csv(self, request):
         query    = request.query_params.get('q', '')
@@ -93,13 +178,13 @@ class ProduitViewSet(viewsets.ModelViewSet):
 
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="produits.csv"'
-
-        writer = csv.writer(response)
-        writer.writerow(['ID', 'Nom', 'Prix', 'Plateforme', 'URL', 'Date'])
+        writer   = csv.writer(response)
+        writer.writerow(['ID', 'Nom', 'Description', 'Prix', 'Catégorie', 'Plateforme', 'URL', 'Date'])
         for p in produits:
-            writer.writerow([p.id, p.nom, p.prix, p.plateforme, p.url, p.date_collecte])
-
+            writer.writerow([p.id, p.nom, p.description, p.prix, p.categorie, p.plateforme, p.url, p.date_collecte])
         return response
+
+    # GET /api/produits/export_pdf/?q=iphone
     @action(detail=False, methods=['get'])
     def export_pdf(self, request):
         query    = request.query_params.get('q', '')
@@ -107,62 +192,57 @@ class ProduitViewSet(viewsets.ModelViewSet):
 
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = 'attachment; filename="produits.pdf"'
-
-        p   = canvas.Canvas(response, pagesize=A4)
+        p    = canvas.Canvas(response, pagesize=A4)
         w, h = A4
+
         p.setFont("Helvetica-Bold", 14)
         p.drawString(50, h - 50, f"Résultats : {query}")
         p.setFont("Helvetica", 10)
-
         y = h - 80
+
         for prod in produits:
             if y < 50:
                 p.showPage()
                 y = h - 50
-            ligne = f"{prod.nom[:50]}  |  {prod.prix} MAD  |  {prod.plateforme}"
-            p.drawString(50, y, ligne)
+            p.drawString(50, y, f"{prod.nom[:40]} | {prod.prix} MAD | {prod.plateforme} | {prod.categorie}")
             y -= 18
 
         p.save()
         return response
 
-# ── Recherche ViewSet ─────────────────────────────────────────
-class RechercheViewSet(viewsets.ModelViewSet):
-    queryset         = Recherche.objects.all().order_by('-date')
-    serializer_class = RechercheSerializer
-
-# ── Surveillance Prix ViewSet ─────────────────────────────────
-class SurveillancePrixViewSet(viewsets.ModelViewSet):
-    queryset         = SurveillancePrix.objects.all()
-    serializer_class = SurveillancePrixSerializer
-
-    # POST /api/surveillance/check_alerts/
+    # POST /api/produits/check_alerts/
     @action(detail=False, methods=['post'])
     def check_alerts(self, request):
         alertes    = SurveillancePrix.objects.filter(notifie=False)
         declenchee = []
-
         for alerte in alertes:
-            prix_actuels = Produit.objects.filter(
+            offres = Produit.objects.filter(
                 nom__icontains = alerte.produit,
                 prix__lte      = alerte.prix_cible
             )
-            if prix_actuels.exists():
+            if offres.exists():
                 alerte.notifie = True
                 alerte.save()
                 declenchee.append({
                     'produit'   : alerte.produit,
                     'prix_cible': alerte.prix_cible,
-                    'offres'    : ProduitSerializer(prix_actuels, many=True).data
+                    'offres'    : ProduitSerializer(offres, many=True).data
                 })
-
         return Response({
             'alertes_declenchees': len(declenchee),
             'details'            : declenchee
         })
 
-# ── Auth : Register ───────────────────────────────────────────
+
+class RechercheViewSet(viewsets.ModelViewSet):
+    queryset         = Recherche.objects.all().order_by('-date')
+    serializer_class = RechercheSerializer
+
+class SurveillancePrixViewSet(viewsets.ModelViewSet):
+    queryset         = SurveillancePrix.objects.all()
+    serializer_class = SurveillancePrixSerializer
+
 class RegisterView(generics.CreateAPIView):
-    queryset         = User.objects.all()
-    serializer_class = RegisterSerializer
+    queryset           = User.objects.all()
+    serializer_class   = RegisterSerializer
     permission_classes = [AllowAny]
