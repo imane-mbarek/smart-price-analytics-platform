@@ -233,6 +233,44 @@ class ProduitViewSet(viewsets.ModelViewSet):
             'details'            : declenchee
         })
 
+# ── Panier ────────────────────────────────────────────────────────────
+class PanierViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+ 
+    # GET /api/panier/
+    def list(self, request):
+        items = Panier.objects.filter(utilisateur=request.user).select_related('produit')
+        return Response(PanierSerializer(items, many=True).data)
+ 
+    # POST /api/panier/   body: { "produit": <id> }
+    def create(self, request):
+        produit_id = request.data.get('produit')
+        try:
+            produit = Produit.objects.get(id=produit_id)
+        except Produit.DoesNotExist:
+            return Response({'error': 'Produit introuvable'}, status=404)
+ 
+        item, created = Panier.objects.get_or_create(
+            utilisateur=request.user,
+            produit=produit,
+            defaults={'prix_au_moment': produit.prix}
+        )
+        if not created:
+            return Response({'message': 'Produit déjà dans le panier'}, status=200)
+        return Response(PanierSerializer(item).data, status=201)
+ 
+    # DELETE /api/panier/<produit_id>/
+    def destroy(self, request, pk=None):
+        deleted, _ = Panier.objects.filter(utilisateur=request.user, produit_id=pk).delete()
+        if not deleted:
+            return Response({'error': 'Produit non trouvé dans le panier'}, status=404)
+        return Response(status=204)
+ 
+    # GET /api/panier/count/
+    @action(detail=False, methods=['get'])
+    def count(self, request):
+        return Response({'count': Panier.objects.filter(utilisateur=request.user).count()})
+ 
 
 class RechercheViewSet(viewsets.ModelViewSet):
     queryset         = Recherche.objects.all().order_by('-date')
