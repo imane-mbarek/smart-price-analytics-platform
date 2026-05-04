@@ -12,6 +12,17 @@ class Produit(models.Model):
     def __str__(self):
         return self.nom
 
+class HistoriquePrix(models.Model):
+    """Sauvegarde le prix à chaque scraping pour détecter les variations."""
+    produit    = models.ForeignKey(Produit, on_delete=models.CASCADE, related_name='historique_prix')
+    prix       = models.FloatField()
+    en_stock   = models.BooleanField(default=True)
+    date       = models.DateTimeField(auto_now_add=True)
+ 
+    def __str__(self):
+        return f"{self.produit.nom} — {self.prix} MAD"
+
+
 class Recherche(models.Model):
     utilisateur = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     produit     = models.CharField(max_length=255)
