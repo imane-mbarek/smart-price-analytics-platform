@@ -22,6 +22,20 @@ class HistoriquePrix(models.Model):
     def __str__(self):
         return f"{self.produit.nom} — {self.prix} MAD"
 
+class Panier(models.Model):
+    """Produits sauvegardés par un utilisateur (surveillés)."""
+    utilisateur    = models.ForeignKey(User, on_delete=models.CASCADE, related_name='panier')
+    produit        = models.ForeignKey(Produit, on_delete=models.CASCADE, related_name='dans_paniers')
+    prix_au_moment = models.FloatField()   # prix quand ajouté au panier
+    date_ajout     = models.DateTimeField(auto_now_add=True)
+ 
+    class Meta:
+        unique_together = ('utilisateur', 'produit')  # un produit une seule fois par panier
+ 
+    def __str__(self):
+        return f"{self.utilisateur.username} → {self.produit.nom}"
+
+
 
 class Recherche(models.Model):
     utilisateur = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
