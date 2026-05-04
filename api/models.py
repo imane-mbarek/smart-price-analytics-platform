@@ -35,6 +35,28 @@ class Panier(models.Model):
     def __str__(self):
         return f"{self.utilisateur.username} → {self.produit.nom}"
 
+class Notification(models.Model):
+    TYPE_CHOICES = [
+        ('baisse_prix',  'Baisse de prix'),
+        ('hausse_prix',  'Hausse de prix'),
+        ('rupture',      'Rupture de stock'),
+        ('retour_stock', 'Retour en stock'),
+    ]
+ 
+    utilisateur = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    produit     = models.ForeignKey(Produit, on_delete=models.CASCADE, related_name='notifications')
+    type_notif  = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    message     = models.TextField()
+    ancien_prix = models.FloatField(null=True, blank=True)
+    nouveau_prix= models.FloatField(null=True, blank=True)
+    lue         = models.BooleanField(default=False)
+    date        = models.DateTimeField(auto_now_add=True)
+ 
+    class Meta:
+        ordering = ['-date']
+ 
+    def __str__(self):
+        return f"{self.utilisateur.username} | {self.type_notif} | {self.produit.nom}"
 
 
 class Recherche(models.Model):
