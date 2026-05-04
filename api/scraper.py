@@ -8,6 +8,18 @@ CATEGORIES = {
                    'hp', 'lenovo', 'asus', 'acer', 'notebook', 'ordinateur']
 }
 
+# Mots qui indiquent que le produit est un accessoire, pas le produit lui-même
+MOTS_PARASITES = [
+    'coque', 'étui', 'etui', 'housse', 'protection', 'verre', 'film',
+    'chargeur', 'câble', 'cable', 'adaptateur', 'support', 'dock',
+    'écouteurs', 'ecouteurs', 'airpods', 'casque', 'batterie',
+    'accessoire', 'kit', 'pack', 'lot', 'pochette', 'sac',
+    'stylet', 'stylo', 'manette', 'clavier', 'souris', 'webcam',
+    'ventilateur', 'refroidisseur', 'sleeve', 'cover', 'case',
+    'screen protector', 'tempered glass', 'charger', 'cable',
+    'earphones', 'headphones', 'speaker', 'bag', 'backpack',
+]
+
 def get_categorie(produit):
     produit_lower = produit.lower()
     for cat, mots_cles in CATEGORIES.items():
@@ -21,6 +33,38 @@ def valider_categorie(produit):
     if cat == 'non_specifie':
         return False, "Produit non supporté. Recherchez un téléphone (iphone, samsung...) ou un laptop (hp, dell, lenovo...)"
     return True, cat
+
+
+def est_produit_principal(nom, query):
+    """
+    Retourne True uniquement si le produit est le produit cherché,
+    pas un accessoire ou un article lié.
+ 
+    Règles :
+    1. Le nom ne doit pas commencer par un mot parasite.
+    2. Le nom doit contenir la requête comme élément principal
+       (dans les 3 premiers mots du titre).
+    """
+    nom_lower   = nom.lower().strip()
+    query_lower = query.lower().strip()
+ 
+    # Règle 1 : premier mot = parasite → exclure
+    premier_mot = nom_lower.split()[0] if nom_lower.split() else ''
+    if any(premier_mot == p or nom_lower.startswith(p + ' ') for p in MOTS_PARASITES):
+        return False
+ 
+    # Règle 2 : le nom doit contenir la requête dans ses premiers mots
+    # On prend les N premiers caractères proportionnels à la longueur de la query
+    zone_principale = ' '.join(nom_lower.split()[:4])  # 4 premiers mots
+    if query_lower not in zone_principale:
+        # Tolérance : vérifier mot par mot si la query est un terme composé
+        # ex: "pc portable" → "pc" ET "portable" dans les 4 premiers mots
+        mots_query = query_lower.split()
+        if not all(m in zone_principale for m in mots_query):
+            return False
+ 
+    return True
+    
 
 # ── JUMIA ─────────────────────────────────────────────────────
 def scrape_jumia(produit):
@@ -41,11 +85,15 @@ def scrape_jumia(produit):
             print("Jumia : aucun produit trouvé")
             return []
 
-        for p in produits[:10]:
+        for p in produits[:20]:  # on prend plus large pour compenser le filtrage
             try:
                 nom  = p.find('h3', class_='name').text.strip()
                 prix = p.find('div', class_='prc').text.strip()
                 lien = "https://www.jumia.ma" + p.find('a')['href']
+
+                  # ── Filtrage strict ──────────────────────────────
+                if not est_produit_principal(nom, produit):
+                    continue
 
                 categorie = get_categorie(nom)
                 rating    = p.find('div', class_='stars')
@@ -92,11 +140,15 @@ def scrape_avito(produit):
             print("Avito : aucune annonce trouvée")
             return []
 
-        for a in annonces[:10]:
+        for a in annonces[:20]:
             try:
                 nom  = a.find('p', class_='sc-flUlpA').text.strip()
                 prix = a.find('p', class_='sc-eDnWTT').text.strip()
                 lien = "https://www.avito.ma" + a['href']
+
+                 # ── Filtrage strict ──────────────────────────────
+                if not est_produit_principal(nom, produit):
+                    continue
 
                 categorie    = get_categorie(nom)
                 localisation = a.find('p', class_='sc-jTQCzO')
@@ -150,6 +202,10 @@ def scrape_ebay(produit):
                 lien = item.find('a', class_='s-item__link')['href']
 
                 if nom == "Shop on eBay":
+                    continue
+
+                 # ── Filtrage strict ──────────────────────────────
+                if not est_produit_principal(nom, produit):
                     continue
 
                 categorie = get_categorie(nom)
