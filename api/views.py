@@ -271,6 +271,35 @@ class PanierViewSet(viewsets.ViewSet):
     def count(self, request):
         return Response({'count': Panier.objects.filter(utilisateur=request.user).count()})
  
+# ── Notifications ─────────────────────────────────────────────────────
+class NotificationViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+ 
+    # GET /api/notifications/
+    def list(self, request):
+        notifs = Notification.objects.filter(utilisateur=request.user)
+        return Response(NotificationSerializer(notifs, many=True).data)
+ 
+    # POST /api/notifications/<id>/lire/
+    @action(detail=True, methods=['post'])
+    def lire(self, request, pk=None):
+        updated = Notification.objects.filter(utilisateur=request.user, id=pk).update(lue=True)
+        if not updated:
+            return Response({'error': 'Notification introuvable'}, status=404)
+        return Response({'message': 'Notification marquée comme lue'})
+ 
+    # POST /api/notifications/tout_lire/
+    @action(detail=False, methods=['post'])
+    def tout_lire(self, request):
+        count = Notification.objects.filter(utilisateur=request.user, lue=False).update(lue=True)
+        return Response({'message': f'{count} notification(s) marquée(s) comme lues'})
+ 
+    # GET /api/notifications/non_lues/
+    @action(detail=False, methods=['get'])
+    def non_lues(self, request):
+        notifs = Notification.objects.filter(utilisateur=request.user, lue=False)
+        return Response({'count': notifs.count(), 'notifications': NotificationSerializer(notifs, many=True).data})
+ 
 
 class RechercheViewSet(viewsets.ModelViewSet):
     queryset         = Recherche.objects.all().order_by('-date')
