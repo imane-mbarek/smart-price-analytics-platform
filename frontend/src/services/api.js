@@ -9,24 +9,29 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Scraping
-export const lancerRecherche = (query, plateformes) =>
-  api.get("/produits/search_async/", { params: { q: query, plateformes: plateformes.join(",") } });
+// ── Produits ──────────────────────────────────────────────────────────
+export const getAllProduits  = ()              => api.get("/produits/");
+export const lancerRecherche = (q, plateformes) => api.get("/produits/search_async/", { params: { q, plateformes: plateformes.join(",") } });
+export const getProgression  = (taskId)        => api.get("/produits/progression/",   { params: { task_id: taskId } });
+export const exportCSV       = (q)             => api.get("/produits/export_csv/",    { params: { q }, responseType: "blob" });
+export const exportPDF       = (q)             => api.get("/produits/export_pdf/",    { params: { q }, responseType: "blob" });
 
-export const getProgression = (taskId) =>
-  api.get("/produits/progression/", { params: { task_id: taskId } });
+// ── Panier ────────────────────────────────────────────────────────────
+export const getPanier        = ()           => api.get("/panier/");
+export const getPanierCount   = ()           => api.get("/panier/count/");
+export const ajouterAuPanier  = (produitId)  => api.post("/panier/",           { produit: produitId });
+export const retirerDuPanier  = (produitId)  => api.delete(`/panier/${produitId}/`);
 
-// Export
-export const exportCSV = (query) =>
-  api.get("/produits/export_csv/", { params: { q: query }, responseType: "blob" });
+// ── Notifications ─────────────────────────────────────────────────────
+export const getNotifications  = ()  => api.get("/notifications/");
+export const getNonLues        = ()  => api.get("/notifications/non_lues/");
+export const marquerLue        = (id) => api.post(`/notifications/${id}/lire/`);
+export const toutMarquerLu     = ()  => api.post("/notifications/tout_lire/");
 
-export const exportPDF = (query) =>
-  api.get("/produits/export_pdf/", { params: { q: query }, responseType: "blob" });
-
-// Historique
+// ── Historique ────────────────────────────────────────────────────────
 export const getHistorique = () => api.get("/recherches/");
 
-// Auth
+// ── Auth ──────────────────────────────────────────────────────────────
 export const login    = (data) => axios.post("/api/token/",    data);
 export const register = (data) => axios.post("/api/register/", data);
 export const logout   = ()     => { localStorage.removeItem("access"); localStorage.removeItem("refresh"); };
