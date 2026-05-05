@@ -1,10 +1,16 @@
 // src/App.jsx
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
-import { AuthProvider } from "./hooks/useAuth";
-import useAuth     from "./hooks/useAuth";
-import HomePage    from "./pages/HomePage";
-import HistoryPage from "./pages/HistoryPage";
-import LoginPage   from "./pages/LoginPage";
+import { AuthProvider }          from "./hooks/useAuth";
+import { PanierProvider }        from "./hooks/usePanier";
+import { NotificationsProvider } from "./hooks/useNotifications";
+import useAuth          from "./hooks/useAuth";
+import usePanier        from "./hooks/usePanier";
+import useNotifications from "./hooks/useNotifications";
+import HomePage           from "./pages/HomePage";
+import HistoryPage        from "./pages/HistoryPage";
+import LoginPage          from "./pages/LoginPage";
+import PanierPage         from "./pages/PanierPage";
+import NotificationsPage  from "./pages/NotificationsPage";
 import "./index.css";
 
 function Navbar() {
