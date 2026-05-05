@@ -116,6 +116,8 @@ a { color: inherit; text-decoration: none; }
 
 /* Misc */
 .muted { font-size: 13px; color: #94a3b8; }
+.filtered-note { color: #f59e0b; font-size: 12px; }
+.section-title { font-size: 1.05rem; font-weight: 600; color: #0f172a; }
 .empty { text-align: center; padding: 3rem; color: #94a3b8; }
 
 /* History */
@@ -124,4 +126,130 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 600px) {
   .grid-2 { grid-template-columns: 1fr; }
   .row    { flex-direction: column; align-items: stretch; }
+}
+
+/* ── Navbar icons ────────────────────────────────────────────────── */
+.nav-icon-btn {
+  position: relative;
+  font-size: 1.1rem;
+  text-decoration: none;
+  padding: .2rem .3rem;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.nav-icon-btn:hover { background: #f1f5f9; }
+
+.nav-badge {
+  position: absolute;
+  top: -5px; right: -6px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 3px;
+}
+.nav-badge-red { background: #ef4444; }
+
+/* ── Bouton panier (dans le tableau) ─────────────────────────────── */
+.btn-panier {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: .2rem .5rem;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-panier:hover { background: #eff6ff; border-color: #2563eb; }
+
+.btn-panier-active {
+  background: #eff6ff;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  padding: .2rem .5rem;
+  font-size: 13px;
+  cursor: pointer;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+/* ── Page Panier ─────────────────────────────────────────────────── */
+.panier-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.panier-info   { flex: 2; min-width: 200px; }
+.panier-nom    { font-weight: 600; font-size: 14px; margin-bottom: .25rem; }
+.panier-prix   { flex: 3; display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
+.panier-actions{ display: flex; gap: .5rem; margin-left: auto; }
+.prix-actuel   { font-size: 1.1rem; font-weight: 700; color: #0f172a; }
+
+.badge-down { background: #dcfce7; color: #166534; padding: .15rem .5rem; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-up   { background: #fef3c7; color: #92400e; padding: .15rem .5rem; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-neutral { background: #f1f5f9; color: #64748b; padding: .15rem .5rem; border-radius: 4px; font-size: 12px; }
+
+.btn-danger {
+  background: transparent;
+  border: 1px solid #fca5a5;
+  color: #ef4444;
+  padding: .3rem .75rem;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-danger:hover { background: #fef2f2; }
+
+/* ── Page Notifications ──────────────────────────────────────────── */
+.notif-badge-title {
+  display: inline-block;
+  background: #ef4444;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  text-align: center;
+  line-height: 22px;
+  margin-left: .5rem;
+  padding: 0 5px;
+}
+
+.notif-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  transition: background .15s;
+}
+.notif-unread { border-left: 3px solid #2563eb; }
+
+.notif-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.notif-body    { flex: 1; }
+.notif-type    { font-size: 12px; font-weight: 600; }
+.notif-produit { font-size: 13px; font-weight: 600; color: #0f172a; }
+.notif-message { font-size: 13px; color: #475569; margin-top: .2rem; }
+
+.notif-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+  margin-top: 6px;
 }
