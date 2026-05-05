@@ -53,6 +53,24 @@ function Navbar() {
   );
 }
 
+// Les providers doivent être à l'intérieur de BrowserRouter pour useNavigate
+function AppInner() {
+  return (
+    <>
+      <Navbar />
+      <main className="main">
+        <Routes>
+          <Route path="/"              element={<HomePage />}          />
+          <Route path="/history"       element={<HistoryPage />}       />
+          <Route path="/login"         element={<LoginPage />}         />
+          <Route path="/panier"        element={<PanierPage />}        />
+          <Route path="/notifications" element={<NotificationsPage />} />
+        </Routes>
+      </main>
+    </>
+  );
+}
+
 export default function App() {
   return (
     <AuthProvider>
