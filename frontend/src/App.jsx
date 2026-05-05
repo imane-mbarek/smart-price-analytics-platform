@@ -75,14 +75,11 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Navbar />
-        <main className="main">
-          <Routes>
-            <Route path="/"        element={<HomePage />}    />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/login"   element={<LoginPage />}   />
-          </Routes>
-        </main>
+        <PanierProvider>
+          <NotificationsProvider>
+            <AppInner />
+          </NotificationsProvider>
+        </PanierProvider>
       </BrowserRouter>
     </AuthProvider>
   );
