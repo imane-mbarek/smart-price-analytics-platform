@@ -15,18 +15,39 @@ import "./index.css";
 
 function Navbar() {
   const { user, logout } = useAuth();
+  const { count }          = usePanier();
+  const { nonLues }        = useNotifications();
   const navigate = useNavigate();
   return (
     <nav className="navbar">
       <Link to="/" className="nav-logo">📊 Smart Price Analytics</Link>
+
       <div className="nav-links">
-        <Link to="/"        className="nav-link">Recherche</Link>
+        <Link to="/"        className="nav-link">Accueil</Link>
         <Link to="/history" className="nav-link">Historique</Link>
-        {user
-          ? <><span className="muted">👤 {user.username}</span>
-              <button className="btn-sm" onClick={() => { logout(); navigate("/login"); }}>Déconnexion</button></>
-          : <Link to="/login" className="btn-sm">Connexion</Link>
-        }
+
+        {user && (
+          <>
+            {/* Panier avec badge */}
+            <Link to="/panier" className="nav-icon-btn">
+              🛒
+              {count > 0 && <span className="nav-badge">{count}</span>}
+            </Link>
+
+            {/* Notifications avec badge */}
+            <Link to="/notifications" className="nav-icon-btn">
+              🔔
+              {nonLues > 0 && <span className="nav-badge nav-badge-red">{nonLues}</span>}
+            </Link>
+
+            <span className="muted">👤 {user.username}</span>
+            <button className="btn-sm" onClick={() => { logout(); navigate("/login"); }}>
+              Déconnexion
+            </button>
+          </>
+        )}
+
+        {!user && <Link to="/login" className="btn-sm">Connexion</Link>}
       </div>
     </nav>
   );
