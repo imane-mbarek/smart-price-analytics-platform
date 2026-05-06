@@ -8,6 +8,20 @@ CATEGORIES = {
                    'hp', 'lenovo', 'asus', 'acer', 'notebook', 'ordinateur']
 }
 
+# Produits variés à scraper périodiquement (page d'accueil)
+PRODUITS_PERIODIQUES = [
+    'iphone',
+    'samsung galaxy',
+    'redmi',
+    'hp laptop',
+    'lenovo',
+    'asus laptop',
+    'huawei',
+    'macbook',
+    'dell laptop',
+    'xiaomi',
+]
+
 # Mots qui indiquent que le produit est un accessoire, pas le produit lui-même
 MOTS_PARASITES = [
     'coque', 'étui', 'etui', 'housse', 'protection', 'verre', 'film',
