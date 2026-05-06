@@ -34,6 +34,14 @@ MOTS_PARASITES = [
     'earphones', 'headphones', 'speaker', 'bag', 'backpack',
 ]
 
+HEADERS = {
+    'User-Agent': (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/120.0.0.0 Safari/537.36'
+    )
+}
+
 def get_categorie(produit):
     produit_lower = produit.lower()
     for cat, mots_cles in CATEGORIES.items():
@@ -70,15 +78,11 @@ def est_produit_principal(nom, query):
     # Règle 2 : le nom doit contenir la requête dans ses premiers mots
     # On prend les N premiers caractères proportionnels à la longueur de la query
     zone_principale = ' '.join(nom_lower.split()[:4])  # 4 premiers mots
-    if query_lower not in zone_principale:
-        # Tolérance : vérifier mot par mot si la query est un terme composé
-        # ex: "pc portable" → "pc" ET "portable" dans les 4 premiers mots
-        mots_query = query_lower.split()
-        if not all(m in zone_principale for m in mots_query):
-            return False
- 
-    return True
     
+     # Tolérance : vérifier mot par mot si la query est un terme composé
+    # ex: "pc portable" → "pc" ET "portable" dans les 4 premiers mots
+    mots_query = query_lower.split()
+    return all(m in zone_principale for m in mots_query)    
 
 # ── JUMIA ─────────────────────────────────────────────────────
 def scrape_jumia(produit):
