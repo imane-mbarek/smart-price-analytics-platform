@@ -13,23 +13,35 @@ export default function HistoryPage() {
   }, []);
 
   return (
-    <div className="page">
-      <h1 className="title">Historique des recherches</h1>
-      {loading && <p className="muted">Chargement…</p>}
-      {!loading && !history.length && <div className="empty">Aucune recherche enregistrée.</div>}
-      {history.map((item) => (
-        <div key={item.id} className="card row space-between">
-          <div>
-            <strong>« {item.produit} »</strong>
-            <p className="muted" style={{ marginTop: 4 }}>
-              {new Date(item.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-            </p>
+    <div className="page-content">
+      <div className="section-header">
+        <h2 className="section-title">Historique des recherches</h2>
+      </div>
+
+      {loading && <p style={{ color: "#94a3b8", fontSize: 14 }}>Chargement...</p>}
+
+      {!loading && !history.length && (
+        <div className="empty-state">Aucune recherche enregistrée.</div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: ".6rem" }}>
+        {history.map((item) => (
+          <div key={item.id} className="history-item">
+            <div>
+              <p className="history-query">« {item.produit} »</p>
+              <p className="history-date">
+                {new Date(item.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+            <button
+              className="toolbar-btn"
+              onClick={() => navigate("/", { state: { query: item.produit } })}
+            >
+              🔁 Relancer
+            </button>
           </div>
-          <button className="btn-sm" onClick={() => navigate("/", { state: { query: item.produit } })}>
-            🔁 Relancer
-          </button>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

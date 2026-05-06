@@ -4,11 +4,11 @@ import { useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 
 export default function LoginPage() {
-  const [mode, setMode]     = useState("login");
-  const [form, setForm]     = useState({ username: "", password: "", email: "" });
-  const [error, setError]   = useState("");
+  const [mode,    setMode]    = useState("login");
+  const [form,    setForm]    = useState({ username: "", password: "", email: "" });
+  const [error,   setError]   = useState("");
   const [loading, setLoading] = useState(false);
-  const { login, register } = useAuth();
+  const { login, register }   = useAuth();
   const navigate = useNavigate();
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -28,30 +28,42 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      <div className="card" style={{ maxWidth: 380, width: "100%" }}>
-        <h2 className="title">{mode === "login" ? "Connexion" : "Créer un compte"}</h2>
-        {error && <div className="alert">{error}</div>}
+      <div className="auth-card">
+        <div className="auth-logo">📊</div>
+        <h2 className="auth-title">
+          {mode === "login" ? "Bon retour !" : "Créer un compte"}
+        </h2>
+        <p className="auth-sub">
+          {mode === "login"
+            ? "Connectez-vous pour analyser les prix"
+            : "Rejoignez PriceHunt gratuitement"}
+        </p>
+
+        {error && <div className="auth-error">{error}</div>}
 
         <form onSubmit={onSubmit} className="auth-form">
-          <label className="field">Nom d'utilisateur
-            <input name="username" type="text" value={form.username} onChange={onChange} required />
-          </label>
+          <div className="auth-field">
+            <label>Nom d'utilisateur</label>
+            <input name="username" type="text" value={form.username} onChange={onChange} required autoComplete="username" />
+          </div>
           {mode === "register" && (
-            <label className="field">Email
-              <input name="email" type="email" value={form.email} onChange={onChange} />
-            </label>
+            <div className="auth-field">
+              <label>Email</label>
+              <input name="email" type="email" value={form.email} onChange={onChange} autoComplete="email" />
+            </div>
           )}
-          <label className="field">Mot de passe
-            <input name="password" type="password" value={form.password} onChange={onChange} required />
-          </label>
-          <button className="btn-primary" disabled={loading} style={{ marginTop: 4 }}>
-            {loading ? "…" : mode === "login" ? "Se connecter" : "S'inscrire"}
+          <div className="auth-field">
+            <label>Mot de passe</label>
+            <input name="password" type="password" value={form.password} onChange={onChange} required autoComplete={mode === "login" ? "current-password" : "new-password"} />
+          </div>
+          <button type="submit" className="auth-submit" disabled={loading}>
+            {loading ? "Chargement..." : mode === "login" ? "Se connecter" : "S'inscrire"}
           </button>
         </form>
 
-        <p className="muted" style={{ textAlign: "center", marginTop: "1rem" }}>
+        <p className="auth-switch">
           {mode === "login" ? "Pas de compte ? " : "Déjà inscrit ? "}
-          <button className="link-btn" onClick={() => setMode(mode === "login" ? "register" : "login")}>
+          <button className="auth-link" onClick={() => setMode(mode === "login" ? "register" : "login")}>
             {mode === "login" ? "S'inscrire" : "Se connecter"}
           </button>
         </p>

@@ -1,12 +1,12 @@
-// src/hooks/useSearch.js
 import { useState, useRef, useEffect } from "react";
-import { lancerRecherche, getProgression } from "../services/api";
+import { lancerRecherche, getProgression, getAnalyse } from "../services/api";
 
 export default function useSearch() {
-  const [status,   setStatus]   = useState("idle"); // idle | loading | done | error
+  const [status,   setStatus]   = useState("idle");
   const [progress, setProgress] = useState(0);
   const [message,  setMessage]  = useState("");
   const [produits, setProduits] = useState([]);
+  const [analyse,  setAnalyse]  = useState(null);
   const [error,    setError]    = useState("");
   const [query,    setQuery]    = useState("");
   const poll = useRef(null);
@@ -16,7 +16,8 @@ export default function useSearch() {
 
   const search = async (q, plateformes) => {
     stop();
-    setStatus("loading"); setProgress(0); setMessage(""); setProduits([]); setError(""); setQuery(q);
+    setStatus("loading"); setProgress(0); setMessage("");
+    setProduits([]); setAnalyse(null); setError(""); setQuery(q);
 
     try {
       const { data } = await lancerRecherche(q, plateformes);
@@ -32,10 +33,13 @@ export default function useSearch() {
             stop();
             setProduits(p.resultats || []);
             setStatus("done");
+            // Lancer l'analyse Data Mining
+            try {
+              const { data: dm } = await getAnalyse(q);
+              setAnalyse(dm);
+            } catch { setAnalyse(null); }
           } else if (p.statut === "erreur") {
-            stop();
-            setError(p.message || "Erreur scraping.");
-            setStatus("error");
+            stop(); setError(p.message || "Erreur scraping."); setStatus("error");
           }
         } catch { stop(); setError("Serveur inaccessible."); setStatus("error"); }
       }, 2000);
@@ -46,5 +50,5 @@ export default function useSearch() {
     }
   };
 
-  return { status, progress, message, produits, error, query, search };
+  return { status, progress, message, produits, analyse, error, query, search };
 }

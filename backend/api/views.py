@@ -18,6 +18,7 @@ from reportlab.lib.pagesizes import A4
 _progression = {}
 
 TAUX_CONVERSION = {'USD': 10.0, 'EUR': 10.8, 'GBP': 12.5, 'MAD': 1.0}
+PLATFORM_NAMES = {'jumia': 'Jumia', 'avito': 'Avito', 'ebay': 'eBay'}
 
 
 def clean_price(prix_str):
@@ -50,6 +51,73 @@ def clean_price(prix_str):
     return round(valeur * TAUX_CONVERSION.get(devise, 1.0), 2)
 
 
+def _creer_notifications_panier(produit, prix_ancien, prix_nouveau, stock_ancien, stock_nouveau):
+    paniers = Panier.objects.filter(produit=produit).select_related('utilisateur')
+    if not paniers.exists():
+        return
+
+    for panier in paniers:
+        user = panier.utilisateur
+
+        if prix_ancien > 0 and prix_nouveau < prix_ancien:
+            variation = ((prix_ancien - prix_nouveau) / prix_ancien) * 100
+            if variation >= 2:
+                Notification.objects.create(
+                    utilisateur=user,
+                    produit=produit,
+                    type_notif='baisse_prix',
+                    message=f"Prix réduit de {variation:.1f}% sur {produit.plateforme} !",
+                    ancien_prix=prix_ancien,
+                    nouveau_prix=prix_nouveau,
+                )
+        elif prix_ancien > 0 and prix_nouveau > prix_ancien:
+            variation = ((prix_nouveau - prix_ancien) / prix_ancien) * 100
+            if variation >= 5:
+                Notification.objects.create(
+                    utilisateur=user,
+                    produit=produit,
+                    type_notif='hausse_prix',
+                    message=f"Prix augmenté de {variation:.1f}% sur {produit.plateforme}.",
+                    ancien_prix=prix_ancien,
+                    nouveau_prix=prix_nouveau,
+                )
+
+        if stock_ancien and not stock_nouveau:
+            Notification.objects.create(
+                utilisateur=user,
+                produit=produit,
+                type_notif='rupture',
+                message=f"{produit.nom} n'est plus disponible sur {produit.plateforme}.",
+            )
+        elif not stock_ancien and stock_nouveau:
+            Notification.objects.create(
+                utilisateur=user,
+                produit=produit,
+                type_notif='retour_stock',
+                message=f"{produit.nom} est de nouveau disponible sur {produit.plateforme} !",
+            )
+
+
+def _trouver_produit_panier(resultat):
+    plateforme = resultat['plateforme']
+    url = resultat.get('url')
+    nom = resultat['nom']
+
+    produit = Produit.objects.filter(
+        url=url,
+        plateforme=plateforme,
+        dans_paniers__isnull=False,
+    ).first()
+    if produit:
+        return produit
+
+    return Produit.objects.filter(
+        nom__iexact=nom,
+        plateforme=plateforme,
+        dans_paniers__isnull=False,
+    ).first()
+
+
 def _scrape_background(task_id, query, plateformes_list):
     _progression[task_id] = {
         'statut': 'en_cours', 'progression': 0,
@@ -74,21 +142,46 @@ def _scrape_background(task_id, query, plateformes_list):
         _progression[task_id]['message']     = 'Sauvegarde en base...'
         _progression[task_id]['progression'] = 90
 
+        plateformes_db = [PLATFORM_NAMES[p] for p in plateformes_list if p in PLATFORM_NAMES]
+        Produit.objects.filter(
+            nom__icontains=query,
+            plateforme__in=plateformes_db,
+            dans_paniers__isnull=True,
+        ).delete()
+
         saved = []
         for r in resultats:
             prix_mad = clean_price(r['prix'])
             if prix_mad <= 0:
                 continue
-            p = Produit.objects.create(
-                nom        = r['nom'],
-                description= r.get('description', ''),
-                prix       = prix_mad,
-                categorie  = r.get('categorie', 'non_specifie'),
-                plateforme = r['plateforme'],
-                url        = r['url'],
-                en_stock   = True,
-                image      = r.get('image'),
-            )
+
+            p = _trouver_produit_panier(r)
+            if p:
+                prix_ancien = p.prix
+                stock_ancien = p.en_stock
+                p.nom = r['nom']
+                p.description = r.get('description', '')
+                p.prix = prix_mad
+                p.categorie = r.get('categorie', 'non_specifie')
+                p.plateforme = r['plateforme']
+                p.url = r['url']
+                p.en_stock = True
+                if r.get('image'):
+                    p.image = r.get('image')
+                p.save()
+                _creer_notifications_panier(p, prix_ancien, prix_mad, stock_ancien, True)
+            else:
+                p = Produit.objects.create(
+                    nom        = r['nom'],
+                    description= r.get('description', ''),
+                    prix       = prix_mad,
+                    categorie  = r.get('categorie', 'non_specifie'),
+                    plateforme = r['plateforme'],
+                    url        = r['url'],
+                    en_stock   = True,
+                    image      = r.get('image'),
+                )
+
             HistoriquePrix.objects.create(produit=p, prix=prix_mad, en_stock=True)
             saved.append(p)
 
@@ -106,6 +199,16 @@ def _scrape_background(task_id, query, plateformes_list):
 class ProduitViewSet(viewsets.ModelViewSet):
     queryset         = Produit.objects.all().order_by('-date_collecte')
     serializer_class = ProduitSerializer
+
+    @action(detail=False, methods=['get'])
+    def accueil(self, request):
+        try:
+            limit = min(int(request.query_params.get('limit', 12)), 40)
+        except ValueError:
+            limit = 12
+
+        produits = Produit.objects.filter(en_stock=True).order_by('?')[:limit]
+        return Response(ProduitSerializer(produits, many=True).data)
 
     @action(detail=False, methods=['get'])
     def search_async(self, request):
