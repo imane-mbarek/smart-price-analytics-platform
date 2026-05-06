@@ -1,13 +1,13 @@
-from rest_framework import viewsets, status, generics
+from rest_framework import viewsets, generics, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
 from django.http import HttpResponse
-from .models import Produit, Recherche, SurveillancePrix
+from .models import Produit, Recherche, SurveillancePrix, Panier, Notification, HistoriquePrix
 from .serializers import (
-    ProduitSerializer, RechercheSerializer,
-    SurveillancePrixSerializer, RegisterSerializer
+    ProduitSerializer, RechercheSerializer, SurveillancePrixSerializer,
+    RegisterSerializer, PanierSerializer, NotificationSerializer
 )
 from .scraper import scrape_jumia, scrape_avito, scrape_ebay, valider_categorie
 from .datamining import analyser_produits
@@ -17,231 +17,209 @@ from reportlab.lib.pagesizes import A4
 
 _progression = {}
 
+TAUX_CONVERSION = {'USD': 10.0, 'EUR': 10.8, 'GBP': 12.5, 'MAD': 1.0}
+
+
 def clean_price(prix_str):
-    prix_clean = re.sub(r'[^\d.]', '', str(prix_str))
+    """Nettoie et convertit un prix en MAD. Gère USD, EUR, GBP, fourchettes eBay."""
+    s = str(prix_str).strip()
+
+    if ' to ' in s.lower():
+        s = s.lower().split(' to ')[0]
+
+    devise = 'MAD'
+    if '$' in s or 'USD' in s.upper():   devise = 'USD'
+    elif '€' in s or 'EUR' in s.upper(): devise = 'EUR'
+    elif '£' in s or 'GBP' in s.upper(): devise = 'GBP'
+
+    s_clean = re.sub(r'[^\d,.]', '', s)
+
+    if ',' in s_clean and '.' in s_clean:
+        if s_clean.index('.') < s_clean.index(','):
+            s_clean = s_clean.replace('.', '').replace(',', '.')
+        else:
+            s_clean = s_clean.replace(',', '')
+    elif ',' in s_clean:
+        s_clean = s_clean.replace(',', '.')
+
     try:
-        return float(prix_clean)
-    except:
+        valeur = float(s_clean)
+    except (ValueError, AttributeError):
         return 0.0
+
+    return round(valeur * TAUX_CONVERSION.get(devise, 1.0), 2)
+
 
 def _scrape_background(task_id, query, plateformes_list):
     _progression[task_id] = {
-        'statut'     : 'en_cours',
-        'progression': 0,
-        'message'    : 'Démarrage...',
-        'resultats'  : []
+        'statut': 'en_cours', 'progression': 0,
+        'message': 'Démarrage...', 'resultats': []
     }
-
     try:
         resultats = []
-        total     = len(plateformes_list)
-        fait      = 0
+        total = len(plateformes_list)
+        fait  = 0
 
-        if 'jumia' in plateformes_list:
-            _progression[task_id]['message'] = 'Scraping Jumia...'
-            resultats += scrape_jumia(query)
-            fait += 1
-            _progression[task_id]['progression'] = int((fait / total) * 100)
+        for plateforme, scraper in [
+            ('jumia', scrape_jumia),
+            ('avito', scrape_avito),
+            ('ebay',  scrape_ebay),
+        ]:
+            if plateforme in plateformes_list:
+                _progression[task_id]['message'] = f'Scraping {plateforme.capitalize()}...'
+                resultats += scraper(query)
+                fait += 1
+                _progression[task_id]['progression'] = int((fait / total) * 80)
 
-        if 'avito' in plateformes_list:
-            _progression[task_id]['message'] = 'Scraping Avito...'
-            resultats += scrape_avito(query)
-            fait += 1
-            _progression[task_id]['progression'] = int((fait / total) * 100)
+        _progression[task_id]['message']     = 'Sauvegarde en base...'
+        _progression[task_id]['progression'] = 90
 
-        if 'ebay' in plateformes_list:
-            _progression[task_id]['message'] = 'Scraping eBay...'
-            resultats += scrape_ebay(query)
-            fait += 1
-            _progression[task_id]['progression'] = int((fait / total) * 100)
-
-        # Sauvegarder en base
-        _progression[task_id]['message'] = 'Sauvegarde en base...'
         saved = []
         for r in resultats:
+            prix_mad = clean_price(r['prix'])
+            if prix_mad <= 0:
+                continue
             p = Produit.objects.create(
-                nom         = r['nom'],
-                description = r.get('description', ''),
-                prix        = clean_price(r['prix']),
-                categorie   = r.get('categorie', 'non_specifie'),
-                plateforme  = r['plateforme'],
-                url         = r['url']
+                nom        = r['nom'],
+                description= r.get('description', ''),
+                prix       = prix_mad,
+                categorie  = r.get('categorie', 'non_specifie'),
+                plateforme = r['plateforme'],
+                url        = r['url'],
+                en_stock   = True,
+                image      = r.get('image'),
             )
+            HistoriquePrix.objects.create(produit=p, prix=prix_mad, en_stock=True)
             saved.append(p)
 
-        _progression[task_id]['statut']      = 'termine'
-        _progression[task_id]['progression'] = 100
-        _progression[task_id]['message']     = f'{len(saved)} résultats trouvés'
-        _progression[task_id]['resultats']   = ProduitSerializer(saved, many=True).data
+        _progression[task_id].update({
+            'statut': 'termine', 'progression': 100,
+            'message': f'{len(saved)} résultats trouvés',
+            'resultats': ProduitSerializer(saved, many=True).data,
+        })
 
     except Exception as e:
-        _progression[task_id]['statut']  = 'erreur'
-        _progression[task_id]['message'] = str(e)
+        _progression[task_id].update({'statut': 'erreur', 'message': str(e)})
 
 
+# ── Produits ──────────────────────────────────────────────────────────
 class ProduitViewSet(viewsets.ModelViewSet):
-    queryset         = Produit.objects.all()
+    queryset         = Produit.objects.all().order_by('-date_collecte')
     serializer_class = ProduitSerializer
 
-    # GET /api/produits/search_async/?q=iphone&plateformes=jumia,ebay
     @action(detail=False, methods=['get'])
     def search_async(self, request):
-        query       = request.query_params.get('q', '')
+        query       = request.query_params.get('q', '').strip()
         plateformes = request.query_params.get('plateformes', 'jumia,avito,ebay')
 
         if not query:
             return Response({'error': 'Paramètre q manquant'}, status=400)
 
-        # Valider catégorie téléphone ou laptop
         valide, message = valider_categorie(query)
         if not valide:
             return Response({'error': message}, status=400)
 
         plateformes_list = [p.strip().lower() for p in plateformes.split(',')]
-
-        # Historique
         user = request.user if request.user.is_authenticated else None
         Recherche.objects.create(utilisateur=user, produit=query)
 
-        # Lancer en background
         task_id = str(uuid.uuid4())
-        thread  = threading.Thread(
-            target = _scrape_background,
-            args   = (task_id, query, plateformes_list)
-        )
-        thread.daemon = True
-        thread.start()
+        t = threading.Thread(target=_scrape_background, args=(task_id, query, plateformes_list))
+        t.daemon = True
+        t.start()
 
-        return Response({
-            'task_id'    : task_id,
-            'message'    : f'Scraping lancé pour : {query}',
-            'plateformes': plateformes_list
-        })
+        return Response({'task_id': task_id, 'message': f'Scraping lancé pour : {query}', 'plateformes': plateformes_list})
 
-    # GET /api/produits/progression/?task_id=xxx
     @action(detail=False, methods=['get'])
     def progression(self, request):
         task_id = request.query_params.get('task_id', '')
         if not task_id or task_id not in _progression:
             return Response({'error': 'Task ID invalide'}, status=404)
-
         data = _progression[task_id]
         return Response({
-            'task_id'    : task_id,
-            'statut'     : data['statut'],
-            'progression': data['progression'],
-            'message'    : data['message'],
-            'resultats'  : data.get('resultats', [])
+            'task_id': task_id, 'statut': data['statut'],
+            'progression': data['progression'], 'message': data['message'],
+            'resultats': data.get('resultats', []),
         })
 
-    # GET /api/produits/analyser/?q=iphone
     @action(detail=False, methods=['get'])
     def analyser(self, request):
         query    = request.query_params.get('q', '')
         cat      = request.query_params.get('categorie', '')
         produits = Produit.objects.all()
-
-        if query:
-            produits = produits.filter(nom__icontains=query)
-        if cat:
-            produits = produits.filter(categorie=cat)
-
+        if query: produits = produits.filter(nom__icontains=query)
+        if cat:   produits = produits.filter(categorie=cat)
         if not produits.exists():
             return Response({'error': 'Aucun produit à analyser'}, status=404)
+        return Response(analyser_produits(produits))
 
-        resultats = analyser_produits(produits)
-        return Response(resultats)
-
-    # GET /api/produits/by_platform/?platform=Jumia
     @action(detail=False, methods=['get'])
     def by_platform(self, request):
         platform = request.query_params.get('platform', '')
-        produits = Produit.objects.filter(plateforme=platform)
-        return Response(ProduitSerializer(produits, many=True).data)
+        return Response(ProduitSerializer(Produit.objects.filter(plateforme=platform), many=True).data)
 
-    # GET /api/produits/by_categorie/?cat=telephones
     @action(detail=False, methods=['get'])
     def by_categorie(self, request):
         cat      = request.query_params.get('cat', '')
         produits = Produit.objects.filter(categorie=cat)
-        return Response({
-            'categorie': cat,
-            'count'    : produits.count(),
-            'results'  : ProduitSerializer(produits, many=True).data
-        })
+        return Response({'categorie': cat, 'count': produits.count(), 'results': ProduitSerializer(produits, many=True).data})
 
-    # GET /api/produits/export_csv/?q=iphone
     @action(detail=False, methods=['get'])
     def export_csv(self, request):
         query    = request.query_params.get('q', '')
         produits = Produit.objects.filter(nom__icontains=query) if query else Produit.objects.all()
-
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="produits.csv"'
-        writer   = csv.writer(response)
-        writer.writerow(['ID', 'Nom', 'Description', 'Prix', 'Catégorie', 'Plateforme', 'URL', 'Date'])
+        writer = csv.writer(response)
+        writer.writerow(['ID', 'Nom', 'Description', 'Prix (MAD)', 'Catégorie', 'Plateforme', 'URL', 'Date'])
         for p in produits:
             writer.writerow([p.id, p.nom, p.description, p.prix, p.categorie, p.plateforme, p.url, p.date_collecte])
         return response
 
-    # GET /api/produits/export_pdf/?q=iphone
     @action(detail=False, methods=['get'])
     def export_pdf(self, request):
         query    = request.query_params.get('q', '')
         produits = Produit.objects.filter(nom__icontains=query) if query else Produit.objects.all()
-
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = 'attachment; filename="produits.pdf"'
-        p    = canvas.Canvas(response, pagesize=A4)
+        c    = canvas.Canvas(response, pagesize=A4)
         w, h = A4
-
-        p.setFont("Helvetica-Bold", 14)
-        p.drawString(50, h - 50, f"Résultats : {query}")
-        p.setFont("Helvetica", 10)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(50, h - 50, f"Résultats : {query}")
+        c.setFont("Helvetica", 10)
         y = h - 80
-
-        for prod in produits:
-            if y < 50:
-                p.showPage()
-                y = h - 50
-            p.drawString(50, y, f"{prod.nom[:40]} | {prod.prix} MAD | {prod.plateforme} | {prod.categorie}")
+        for p in produits:
+            if y < 50: c.showPage(); y = h - 50
+            c.drawString(50, y, f"{p.nom[:40]} | {p.prix} MAD | {p.plateforme}")
             y -= 18
-
-        p.save()
+        c.save()
         return response
 
-    # POST /api/produits/check_alerts/
     @action(detail=False, methods=['post'])
     def check_alerts(self, request):
         alertes    = SurveillancePrix.objects.filter(notifie=False)
         declenchee = []
         for alerte in alertes:
-            offres = Produit.objects.filter(
-                nom__icontains = alerte.produit,
-                prix__lte      = alerte.prix_cible
-            )
+            offres = Produit.objects.filter(nom__icontains=alerte.produit, prix__lte=alerte.prix_cible)
             if offres.exists():
                 alerte.notifie = True
                 alerte.save()
                 declenchee.append({
-                    'produit'   : alerte.produit,
-                    'prix_cible': alerte.prix_cible,
-                    'offres'    : ProduitSerializer(offres, many=True).data
+                    'produit': alerte.produit, 'prix_cible': alerte.prix_cible,
+                    'offres': ProduitSerializer(offres, many=True).data,
                 })
-        return Response({
-            'alertes_declenchees': len(declenchee),
-            'details'            : declenchee
-        })
+        return Response({'alertes_declenchees': len(declenchee), 'details': declenchee})
+
 
 # ── Panier ────────────────────────────────────────────────────────────
 class PanierViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
- 
+
     # GET /api/panier/
     def list(self, request):
         items = Panier.objects.filter(utilisateur=request.user).select_related('produit')
         return Response(PanierSerializer(items, many=True).data)
- 
+
     # POST /api/panier/   body: { "produit": <id> }
     def create(self, request):
         produit_id = request.data.get('produit')
@@ -249,7 +227,7 @@ class PanierViewSet(viewsets.ViewSet):
             produit = Produit.objects.get(id=produit_id)
         except Produit.DoesNotExist:
             return Response({'error': 'Produit introuvable'}, status=404)
- 
+
         item, created = Panier.objects.get_or_create(
             utilisateur=request.user,
             produit=produit,
@@ -258,28 +236,29 @@ class PanierViewSet(viewsets.ViewSet):
         if not created:
             return Response({'message': 'Produit déjà dans le panier'}, status=200)
         return Response(PanierSerializer(item).data, status=201)
- 
+
     # DELETE /api/panier/<produit_id>/
     def destroy(self, request, pk=None):
         deleted, _ = Panier.objects.filter(utilisateur=request.user, produit_id=pk).delete()
         if not deleted:
             return Response({'error': 'Produit non trouvé dans le panier'}, status=404)
         return Response(status=204)
- 
+
     # GET /api/panier/count/
     @action(detail=False, methods=['get'])
     def count(self, request):
         return Response({'count': Panier.objects.filter(utilisateur=request.user).count()})
- 
+
+
 # ── Notifications ─────────────────────────────────────────────────────
 class NotificationViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
- 
+
     # GET /api/notifications/
     def list(self, request):
         notifs = Notification.objects.filter(utilisateur=request.user)
         return Response(NotificationSerializer(notifs, many=True).data)
- 
+
     # POST /api/notifications/<id>/lire/
     @action(detail=True, methods=['post'])
     def lire(self, request, pk=None):
@@ -287,27 +266,30 @@ class NotificationViewSet(viewsets.ViewSet):
         if not updated:
             return Response({'error': 'Notification introuvable'}, status=404)
         return Response({'message': 'Notification marquée comme lue'})
- 
+
     # POST /api/notifications/tout_lire/
     @action(detail=False, methods=['post'])
     def tout_lire(self, request):
         count = Notification.objects.filter(utilisateur=request.user, lue=False).update(lue=True)
         return Response({'message': f'{count} notification(s) marquée(s) comme lues'})
- 
+
     # GET /api/notifications/non_lues/
     @action(detail=False, methods=['get'])
     def non_lues(self, request):
         notifs = Notification.objects.filter(utilisateur=request.user, lue=False)
         return Response({'count': notifs.count(), 'notifications': NotificationSerializer(notifs, many=True).data})
- 
 
+
+# ── Autres ViewSets ───────────────────────────────────────────────────
 class RechercheViewSet(viewsets.ModelViewSet):
     queryset         = Recherche.objects.all().order_by('-date')
     serializer_class = RechercheSerializer
 
+
 class SurveillancePrixViewSet(viewsets.ModelViewSet):
     queryset         = SurveillancePrix.objects.all()
     serializer_class = SurveillancePrixSerializer
+
 
 class RegisterView(generics.CreateAPIView):
     queryset           = User.objects.all()
