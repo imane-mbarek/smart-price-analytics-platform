@@ -5,8 +5,11 @@ class Produit(models.Model):
     nom           = models.CharField(max_length=255)
     description   = models.TextField(blank=True, null=True)
     prix          = models.FloatField()
+    categorie     = models.CharField(max_length=100, default='non_specifie')
     plateforme    = models.CharField(max_length=100)
     url           = models.URLField()
+    image         = models.URLField(blank=True, null=True)   # ← vraie image produit
+    en_stock      = models.BooleanField(default=True)
     date_collecte = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -77,13 +80,4 @@ class SurveillancePrix(models.Model):
     def __str__(self):
         return f"{self.produit} < {self.prix_cible}"
     
-class Prix(models.Model):
-    produit    = models.ForeignKey(Produit, on_delete=models.CASCADE, related_name='historique_prix')
-    valeur     = models.FloatField()
-    devise     = models.CharField(max_length=10, default='MAD')
-    plateforme = models.CharField(max_length=100)
-    date       = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.produit.nom} — {self.valeur} {self.devise}"
 
