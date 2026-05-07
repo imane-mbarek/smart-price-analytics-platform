@@ -19,9 +19,10 @@ const fmt = (v) =>
   v?.toLocaleString("fr-MA", { style: "currency", currency: "MAD", maximumFractionDigits: 0 }) ?? "—";
 
 export default function ProductCard({ produit }) {
-  const { user }                       = useAuth();
-  const { ajouter, retirer, estDedans } = usePanier();
-  const dedans = estDedans(produit.id);
+  const { user } = useAuth();
+  const panier   = usePanier();
+  const { ajouter, retirer, estDansPanier } = panier || {};
+  const dedans = estDansPanier?.(produit.id) ?? false;
   const style  = PLATFORM_STYLE[produit.plateforme] || PLATFORM_STYLE.Jumia;
 
   // Utiliser la vraie image scraped, sinon fallback par catégorie
@@ -29,7 +30,12 @@ export default function ProductCard({ produit }) {
 
   const togglePanier = async (e) => {
     e.preventDefault();
-    dedans ? await retirer(produit.id) : await ajouter(produit.id);
+    if (!ajouter || !retirer) return;
+    try {
+      dedans ? await retirer(produit.id) : await ajouter(produit.id);
+    } catch {
+      // La session peut expirer entre l'affichage du bouton et le clic.
+    }
   };
 
   const handleImgError = (e) => {

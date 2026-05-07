@@ -2,15 +2,23 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getHistorique } from "../services/api";
+import useAuth from "../hooks/useAuth";
 
 export default function HistoryPage() {
+  const { user } = useAuth();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!user) {
+      setHistory([]);
+      setLoading(false);
+      return;
+    }
+
     getHistorique().then(({ data }) => setHistory(data)).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   return (
     <div className="page-content">
@@ -20,11 +28,15 @@ export default function HistoryPage() {
 
       {loading && <p style={{ color: "#94a3b8", fontSize: 14 }}>Chargement...</p>}
 
-      {!loading && !history.length && (
+      {!loading && !user && (
+        <div className="empty-state">Connectez-vous pour voir votre historique.</div>
+      )}
+
+      {!loading && user && !history.length && (
         <div className="empty-state">Aucune recherche enregistrée.</div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: ".6rem" }}>
+      {user && <div style={{ display: "flex", flexDirection: "column", gap: ".6rem" }}>
         {history.map((item) => (
           <div key={item.id} className="history-item">
             <div>
@@ -41,7 +53,7 @@ export default function HistoryPage() {
             </button>
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

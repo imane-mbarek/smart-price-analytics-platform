@@ -385,8 +385,14 @@ class NotificationViewSet(viewsets.ViewSet):
 
 # ── Autres ViewSets ───────────────────────────────────────────────────
 class RechercheViewSet(viewsets.ModelViewSet):
-    queryset         = Recherche.objects.all().order_by('-date')
     serializer_class = RechercheSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Recherche.objects.filter(utilisateur=self.request.user).order_by('-date')
+
+    def perform_create(self, serializer):
+        serializer.save(utilisateur=self.request.user)
 
 
 class SurveillancePrixViewSet(viewsets.ModelViewSet):

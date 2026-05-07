@@ -2,6 +2,7 @@
 import axios from "axios";
 
 const api = axios.create({ baseURL: "/api" });
+const publicApi = axios.create({ baseURL: "/api" });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access");
@@ -9,12 +10,27 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+      localStorage.removeItem("user");
+      window.dispatchEvent(new Event("auth:logout"));
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ── Produits ──────────────────────────────────────────────────────────
-export const getAllProduits  = ()              => api.get("/produits/");
-export const lancerRecherche = (q, plateformes) => api.get("/produits/search_async/", { params: { q, plateformes: plateformes.join(",") } });
-export const getProgression  = (taskId)        => api.get("/produits/progression/",   { params: { task_id: taskId } });
-export const exportCSV       = (q)             => api.get("/produits/export_csv/",    { params: { q }, responseType: "blob" });
-export const exportPDF       = (q)             => api.get("/produits/export_pdf/",    { params: { q }, responseType: "blob" });
+export const getAllProduits     = ()               => publicApi.get("/produits/");
+export const getAccueilProduits = (limit = 12)     => publicApi.get("/produits/accueil/", { params: { limit } });
+export const lancerRecherche    = (q, plateformes) => publicApi.get("/produits/search_async/", { params: { q, plateformes: plateformes.join(",") } });
+export const getProgression     = (taskId)         => publicApi.get("/produits/progression/",   { params: { task_id: taskId } });
+export const getAnalyse         = (q)              => publicApi.get("/produits/analyser/",      { params: { q } });
+export const exportCSV          = (q)              => publicApi.get("/produits/export_csv/",    { params: { q }, responseType: "blob" });
+export const exportPDF          = (q)              => publicApi.get("/produits/export_pdf/",    { params: { q }, responseType: "blob" });
 
 // ── Panier ────────────────────────────────────────────────────────────
 export const getPanier        = ()           => api.get("/panier/");

@@ -1,5 +1,6 @@
 import requests
 import re
+import json
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
@@ -103,19 +104,81 @@ def _prix_depuis_texte(text):
 def _image_avito(annonce):
     for img in annonce.find_all('img'):
         src = img.get('src') or ''
+        if 'content.avito.ma/classifieds' in src.lower():
+            return extract_image(img, "https://www.avito.ma")
+
+    for img in annonce.find_all('img'):
+        src = img.get('src') or ''
+        src_lower = src.lower()
         alt = (img.get('alt') or '').lower()
-        if 'avatar' in src.lower() or 'profile' in src.lower():
+        if (
+            'avatar' in src_lower
+            or 'profile' in src_lower
+            or 'content.avito.ma/stores' in src_lower
+            or 'phoenix-assets' in src_lower
+        ):
             continue
         if alt and alt not in ('avatar', 'photo'):
             image = extract_image(img, "https://www.avito.ma")
             if image:
                 return image
 
-    for img in annonce.find_all('img'):
-        src = img.get('src') or ''
-        if 'content.avito.ma/classifieds' in src:
-            return extract_image(img, "https://www.avito.ma")
+    return None
 
+
+def _format_prix_avito(price):
+    if isinstance(price, dict):
+        value = price.get('value')
+        currency = price.get('currency') or 'DH'
+        if value:
+            return f"{value} {currency}"
+    return None
+
+
+def _image_avito_json(ad):
+    image = _clean_image_url(ad.get('defaultImage'), "https://www.avito.ma")
+    if image and 'content.avito.ma/classifieds' in image.lower():
+        return image
+
+    images = ad.get('images') or []
+    for item in images:
+        if isinstance(item, str):
+            candidate = item
+        elif isinstance(item, dict):
+            candidate = item.get('url') or item.get('src') or item.get('image')
+        else:
+            continue
+
+        image = _clean_image_url(candidate, "https://www.avito.ma")
+        if image and 'content.avito.ma/classifieds' in image.lower():
+            return image
+
+    return None
+
+
+def _avito_ads_from_json(soup):
+    script = soup.find('script', id='__NEXT_DATA__')
+    if not script or not script.string:
+        return []
+
+    try:
+        data = json.loads(script.string)
+        return (
+            data.get('props', {})
+                .get('pageProps', {})
+                .get('componentProps', {})
+                .get('ads', {})
+                .get('ads', [])
+        )
+    except (json.JSONDecodeError, AttributeError):
+        return []
+
+
+def _value_name(value):
+    if isinstance(value, dict):
+        return value.get('formatted') or value.get('name')
+    if isinstance(value, str):
+        return value
     return None
 
 
@@ -202,6 +265,43 @@ def scrape_avito(produit, limit=20):
         if r.status_code != 200:
             return []
         soup     = BeautifulSoup(r.text, 'html.parser')
+        ads_json = _avito_ads_from_json(soup)
+
+        for ad in ads_json:
+            try:
+                nom = (ad.get('subject') or '').strip()
+                prix = _format_prix_avito(ad.get('price'))
+                lien = urljoin("https://www.avito.ma", ad.get('href') or '')
+                image = _image_avito_json(ad)
+
+                if not nom or not prix or not lien:
+                    continue
+                if not est_produit_principal(nom, produit):
+                    continue
+
+                categorie = get_categorie(nom)
+                desc = f"Catégorie : {categorie}"
+                category = _value_name(ad.get('category'))
+                location = _value_name(ad.get('location'))
+                date_pub = ad.get('date')
+                details = ' | '.join(str(v) for v in (category, location, date_pub) if v)
+                if details:
+                    desc += f" | {details[:120]}"
+
+                resultats.append({
+                    'nom'        : nom,
+                    'description': desc,
+                    'prix'       : prix,
+                    'categorie'  : categorie,
+                    'plateforme' : 'Avito',
+                    'url'        : lien,
+                    'image'      : image,
+                })
+                if len(resultats) >= limit:
+                    return resultats
+            except:
+                continue
+
         annonces = []
         seen     = set()
         for a in soup.find_all('a', href=True):
