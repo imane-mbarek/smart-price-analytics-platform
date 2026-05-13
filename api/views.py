@@ -10,7 +10,7 @@ from .serializers import (
     SurveillancePrixSerializer, RegisterSerializer
 )
 from .scraper import scrape_jumia, scrape_avito, scrape_ebay, valider_categorie
-from .datamining import analyser_produits
+from .data_mining.dm_service import analyze
 import re, csv, threading, uuid
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -149,7 +149,9 @@ class ProduitViewSet(viewsets.ModelViewSet):
         if not produits.exists():
             return Response({'error': 'Aucun produit à analyser'}, status=404)
 
-        resultats = analyser_produits(produits)
+        raw_data = list(produits.values())
+
+        resultats = analyze(raw_data)
         return Response(resultats)
 
     # GET /api/produits/by_platform/?platform=Jumia
