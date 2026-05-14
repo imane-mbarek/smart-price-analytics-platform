@@ -50,6 +50,10 @@ def analyze(raw_data: Iterable[dict] | pd.DataFrame) -> dict:
 
     return {
         "stats": compute_stats(df_scaled),
+        "kmeans": {
+            "centroids": kmeans.get("centroids", []),
+            "elbow": kmeans.get("elbow", []),
+        },
         "clusters": clusters,
         "dbscan": run_dbscan(df_scaled, features),
         "anomalies": detect_anomalies(df_scaled, features),

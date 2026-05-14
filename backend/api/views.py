@@ -10,7 +10,7 @@ from .serializers import (
     RegisterSerializer, PanierSerializer, NotificationSerializer
 )
 from .scraper import scrape_jumia, scrape_avito, scrape_ebay, valider_categorie
-from .data_mining.dm_service import analyze
+from data_mining.api.dm_service import analyze
 import re, csv, threading, uuid
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
