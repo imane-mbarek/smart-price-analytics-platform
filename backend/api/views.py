@@ -10,7 +10,7 @@ from .serializers import (
     RegisterSerializer, PanierSerializer, NotificationSerializer
 )
 from .scraper import scrape_jumia, scrape_avito, scrape_ebay, valider_categorie
-from .datamining import analyser_produits
+from .data_mining.dm_service import analyze
 import re, csv, threading, uuid
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -254,7 +254,8 @@ class ProduitViewSet(viewsets.ModelViewSet):
         if cat:   produits = produits.filter(categorie=cat)
         if not produits.exists():
             return Response({'error': 'Aucun produit à analyser'}, status=404)
-        return Response(analyser_produits(produits))
+        raw_data = list(produits.values())
+        return Response(analyze(raw_data))
 
     @action(detail=False, methods=['get'])
     def by_platform(self, request):

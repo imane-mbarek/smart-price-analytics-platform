@@ -9,6 +9,7 @@ scrapy
 pandas
 numpy
 scikit-learn
+mlxtend
 psycopg2-binary
 celery
 redis
