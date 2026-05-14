@@ -1,0 +1,17 @@
+Django>=4.2,<5.0
+djangorestframework
+django-cors-headers
+python-dotenv
+requests
+beautifulsoup4
+selenium
+scrapy
+pandas
+numpy
+scikit-learn
+mlxtend
+psycopg2-binary
+celery
+redis
+Pillow
+djangorestframework-simplejwt
