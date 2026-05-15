@@ -441,14 +441,6 @@ python manage.py migrate
 
 ---
 
-## 📞 Support et Contact
-
-Pour toute question sur le projet, consultez :
-- 📖 `presentation_soutenance.md` - Documentation académique complète
-- 📊 `presentation_soutenance.pptx` - Diaporama détaillé
-
----
-
 ## 📝 License
 
 Ce projet est fourni à titre académique et opérationnel.
