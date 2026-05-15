@@ -28,19 +28,19 @@ Voici une démonstration complète du projet en action :
 
 ---
 
-## 📋 Qu'est-ce que c'est ?
+##  Qu'est-ce que c'est ?
 
 Smart Price Analytics Platform est une **application web complète** qui permet de :
-- 🔍 **Comparer les prix** automatiquement sur les marketplaces marocaines (Jumia, Avito)
-- 💡 **Analyser intelligemment** les offres avec des algorithmes de data mining
-- 📱 **Surveiller les produits** dans un panier personnel
-- 🔔 **Recevoir des alertes** quand les prix baissent ou montent
-- 📊 **Visualiser les données** dans une interface moderne et simple
-- 🚨 **Détecter les anomalies** et éviter les arnaquettes
+-  **Comparer les prix** automatiquement sur les marketplaces marocaines (Jumia, Avito)
+-  **Analyser intelligemment** les offres avec des algorithmes de data mining
+-  **Surveiller les produits** dans un panier personnel
+-  **Recevoir des alertes** quand les prix baissent ou montent
+-  **Visualiser les données** dans une interface moderne et simple
+-  **Détecter les anomalies** et éviter les arnaquettes
 
 ---
 
-## 🏗️ Architecture globale
+##  Architecture globale
 
 ```mermaid
 flowchart LR
@@ -70,7 +70,7 @@ flowchart LR
 
 ---
 
-## 🎯 Flux utilisateur
+## Flux utilisateur
 
 ```mermaid
 sequenceDiagram
@@ -100,7 +100,7 @@ sequenceDiagram
 
 ---
 
-## 🚀 Démarrer le projet
+## Démarrer le projet
 
 ### Prérequis
 - **Python 3.8+**
@@ -148,9 +148,9 @@ pip install -r requirements.txt
 
 ---
 
-## 📊 Fonctionnalités principales
+## Fonctionnalités principales
 
-### 🔍 Recherche et Scraping
+### Recherche et Scraping
 ```
 Utilisateur entre "iPhone 15"
     ↓
@@ -163,7 +163,7 @@ Sauvegarde dans la base de données
 Affiche progression en temps réel
 ```
 
-### 📈 Analyse Data Mining
+### Analyse Data Mining
 
 Le système applique des **algorithmes intelligents** :
 
@@ -189,13 +189,13 @@ graph TD
 ```
 
 **Algorithmes utilisés :**
-- 🎯 **K-Means** : Segmentation des offres par gamme de prix
-- 🔴 **DBSCAN** : Détection de clusters denses et points isolés
-- 📈 **PCA** : Réduction de dimensions pour visualisation
-- ⚠️ **Détection d'anomalies** : Identification des prix suspects
-- 📋 **Règles d'association** : Patterns entre caractéristiques
+-  **K-Means** : Segmentation des offres par gamme de prix
+-  **DBSCAN** : Détection de clusters denses et points isolés
+-  **PCA** : Réduction de dimensions pour visualisation
+-  **Détection d'anomalies** : Identification des prix suspects
+-  **Règles d'association** : Patterns entre caractéristiques
 
-### 📱 Panier et Notifications
+###  Panier et Notifications
 
 ```mermaid
 graph LR
@@ -215,7 +215,7 @@ graph LR
 
 ---
 
-## 📁 Structure du projet
+##  Structure du projet
 
 ```
 smart-price-analytics-platform/
@@ -314,40 +314,40 @@ erDiagram
 
 ---
 
-## 🎨 Pages de l'Interface
+##  Pages de l'Interface
 
-### 🏠 Accueil
+### Accueil
 - Barre de recherche
 - Sélection des plateformes (Jumia, Avito)
 - Affichage des offres trouvées
 - Export CSV / PDF
 - Indicators de qualité (détectées par Data Mining)
 
-### 📦 Panier
+### Panier
 - Liste des produits surveillés
 - Historique des prix
 - Suppression d'articles
 - **Accès après authentification**
 
-### 🔔 Notifications
+### Notifications
 - Alertes de baisse/hausse de prix
 - Alertes de stock
 - Marquer comme lu
 - **Accès après authentification**
 
-### 📜 Historique
+### Historique
 - Historique des recherches
 - Statistiques (nb d'offres, prix moyens)
 - Recherches sauvegardées
 
-### 🔐 Authentification
+### Authentification
 - Inscription utilisateur
 - Connexion
 - Gestion du profil
 
 ---
 
-## 📚 API REST - Endpoints principaux
+## API REST - Endpoints principaux
 
 | Endpoint | Méthode | Description |
 |----------|---------|-------------|
@@ -363,7 +363,7 @@ erDiagram
 
 ---
 
-## 🧪 Tests et Qualité
+## Tests et Qualité
 
 ### Lancer les tests du Data Mining
 ```bash
@@ -379,7 +379,7 @@ pylint Project_analysis/
 
 ---
 
-## 💾 Base de données
+## Base de données
 
 Le projet utilise **SQLite** (adaptation facile à PostgreSQL en production) :
 
@@ -393,7 +393,7 @@ python manage.py migrate
 
 ---
 
-## 🎓 Cas d'usage complet
+## Cas d'usage complet
 
 ### Scénario : Rechercher un iPhone 15
 
@@ -417,7 +417,7 @@ python manage.py migrate
 
 ---
 
-## 🚀 Prochaines étapes / Améliorations futures
+## Prochaines étapes / Améliorations futures
 
 - ✨ Ajouter d'autres plateformes (Amazon, Alibaba, etc.)
 - 🗄️ Migrer vers PostgreSQL pour la production
@@ -428,7 +428,7 @@ python manage.py migrate
 
 ---
 
-## 👨‍💻 Technologies utilisées
+## Technologies utilisées
 
 | Domaine | Technologie |
 |---------|------------|
@@ -441,7 +441,7 @@ python manage.py migrate
 
 ---
 
-## 📝 License
+## License
 
 Ce projet est fourni à titre académique et opérationnel.
 
