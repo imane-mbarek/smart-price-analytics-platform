@@ -1,22 +1,21 @@
 // src/pages/HomePage.jsx
 import { useState, useEffect, useMemo } from "react";
-import { useLocation }   from "react-router-dom";
-import useAuth           from "../hooks/useAuth";
-import useSearch         from "../hooks/useSearch";
+import { Link, useLocation } from "react-router-dom";
+import useAuth from "../hooks/useAuth";
+import useSearch from "../hooks/useSearch";
 import { getAccueilProduits, exportCSV, exportPDF } from "../services/api";
-import ProductCard       from "../components/ProductCard";
-import AnalysePanel      from "../components/AnalysePanel";
+import ProductCard from "../components/ProductCard";
+import AnalysePanel from "../components/AnalysePanel";
 
 const PLATFORMS = [
   { id: "jumia", label: "Jumia.ma" },
   { id: "avito", label: "Avito.ma" },
-  { id: "ebay",  label: "eBay" },
 ];
 
 const MOTS_PARASITES = [
-  "coque","étui","etui","housse","protection","verre","film",
-  "chargeur","câble","cable","adaptateur","écouteurs","ecouteurs",
-  "airpods","casque","batterie","accessoire","kit","pack","compatible",
+  "coque", "etui", "housse", "protection", "verre", "film",
+  "chargeur", "cable", "adaptateur", "ecouteurs", "airpods",
+  "casque", "batterie", "accessoire", "kit", "pack", "compatible",
 ];
 
 function matchStrict(nom, query) {
@@ -36,17 +35,33 @@ function downloadBlob(blob, name) {
   URL.revokeObjectURL(url);
 }
 
+function buildInsights(analyse, produits) {
+  const clusters = Object.fromEntries((analyse?.clusters || []).map((item) => [item.offre_id, item]));
+  const anomalies = Object.fromEntries((analyse?.anomalies || []).map((item) => [item.offre_id, item]));
+  const median = analyse?.stats?.median;
+
+  return Object.fromEntries(
+    produits.map((produit) => {
+      const cluster = clusters[produit.id] || {};
+      const anomaly = anomalies[produit.id] || {};
+      const price = Number(produit.prix);
+      const ecartMedian = median && Number.isFinite(price)
+        ? Math.round(((price - median) / median) * 100)
+        : null;
+
+      return [produit.id, { gamme: cluster.gamme, niveau: anomaly.niveau, ecartMedian }];
+    })
+  );
+}
+
 export default function HomePage() {
   const { user } = useAuth();
   const location = useLocation();
 
-  // Catalogue
-  const [catalog,     setCatalog]     = useState([]);
-  const [loadingCat,  setLoadingCat]  = useState(true);
-
-  // Recherche
-  const [input,    setInput]    = useState(location.state?.query || "");
-  const [selected, setSelected] = useState(["jumia", "avito", "ebay"]);
+  const [catalog, setCatalog] = useState([]);
+  const [loadingCat, setLoadingCat] = useState(true);
+  const [input, setInput] = useState(location.state?.query || "");
+  const [selected, setSelected] = useState(["jumia", "avito"]);
   const [searched, setSearched] = useState(false);
   const { status, progress, message, produits: scraped, analyse, error, query, search } = useSearch();
 
@@ -57,7 +72,6 @@ export default function HomePage() {
       .finally(() => setLoadingCat(false));
   }, []);
 
-  // Si relance depuis historique
   useEffect(() => {
     if (location.state?.query) {
       setSearched(true);
@@ -70,6 +84,11 @@ export default function HomePage() {
     [scraped, query, searched]
   );
 
+  const productInsights = useMemo(
+    () => buildInsights(analyse, resultsFiltered),
+    [analyse, resultsFiltered]
+  );
+
   const toggle = (id) =>
     setSelected((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
@@ -80,25 +99,26 @@ export default function HomePage() {
     search(input.trim(), selected);
   };
 
-  const handleReset = () => { setSearched(false); setInput(""); };
+  const handleReset = () => {
+    setSearched(false);
+    setInput("");
+  };
 
   return (
     <div>
-      {/* ── Hero + barre de recherche ── */}
       <section className="hero">
         <div className="hero-inner">
+          <div className="hero-kicker">Site de vente comparee et analyse de prix</div>
           <h1 className="hero-title">
-            Trouvez le <span className="hero-accent">meilleur prix</span><br />
-            au Maroc et à l'international
+            Achetez plus malin avec une <span className="hero-accent">analyse claire</span>
           </h1>
           <p className="hero-sub">
-            Comparaison en temps réel sur Jumia, Avito et eBay
+            Comparez les offres, detectez les prix suspects et choisissez le meilleur produit au bon moment.
           </p>
 
-          {/* Barre de recherche */}
           <form onSubmit={handleSubmit} className="hero-form">
             <div className="hero-search">
-              <span className="hero-search-icon">🔍</span>
+              <span className="hero-search-icon">Search</span>
               <input
                 className="hero-input"
                 placeholder="iPhone 15, HP laptop, Redmi Note 14..."
@@ -111,7 +131,7 @@ export default function HomePage() {
                 className="hero-btn"
                 disabled={status === "loading" || !input.trim() || !selected.length || !user}
               >
-                {status === "loading" ? "..." : "Analyser"}
+                {status === "loading" ? "Analyse..." : "Analyser"}
               </button>
             </div>
 
@@ -125,26 +145,28 @@ export default function HomePage() {
             </div>
           </form>
 
-          {/* Bannière si non connecté */}
+          <div className="hero-proof">
+            <span>Prix en MAD</span>
+            <span>Alertes anti-arnaque</span>
+            <span>Gammes bas / moyen / premium</span>
+          </div>
+
           {!user && (
             <div className="guest-banner">
-              <span>🔒 Créez un compte pour lancer une recherche et analyser les prix</span>
-              <a href="/login" className="guest-cta">Connexion / Inscription →</a>
+              <span>Connectez-vous pour lancer une recherche et ajouter des produits au panier.</span>
+              <Link to="/login" className="guest-cta">Connexion / inscription</Link>
             </div>
           )}
         </div>
       </section>
 
       <div className="page-content">
-
-        {/* ── Mode résultats ── */}
         {searched && (
           <>
-            {/* Progression */}
             {status === "loading" && (
               <div className="progress-bar-wrap">
                 <div className="progress-bar-header">
-                  <span>{message || "Collecte en cours..."}</span>
+                  <span>{message || "Collecte des offres et analyse des prix..."}</span>
                   <strong>{progress}%</strong>
                 </div>
                 <div className="progress-track">
@@ -153,40 +175,40 @@ export default function HomePage() {
               </div>
             )}
 
-            {status === "error" && (
-              <div className="error-banner">⚠ {error}</div>
-            )}
+            {status === "error" && <div className="error-banner">{error}</div>}
 
             {status === "done" && (
               <>
-                {/* Analyse Data Mining */}
                 <AnalysePanel produits={resultsFiltered} analyse={analyse} query={query} />
 
-                {/* Actions */}
                 <div className="results-toolbar">
                   <div className="results-info">
-                    <strong>{resultsFiltered.length}</strong> résultat(s) pour «&nbsp;{query}&nbsp;»
+                    <strong>{resultsFiltered.length}</strong> offres pour "{query}"
                     {scraped.length > resultsFiltered.length && (
-                      <span className="filtered-note"> · {scraped.length - resultsFiltered.length} accessoires exclus</span>
+                      <span className="filtered-note"> - {scraped.length - resultsFiltered.length} accessoires exclus</span>
                     )}
                   </div>
                   <div className="results-actions">
-                    <button onClick={() => exportCSV(query).then((r) => downloadBlob(r.data, `${query}.csv`))} className="toolbar-btn">⬇ CSV</button>
-                    <button onClick={() => exportPDF(query).then((r) => downloadBlob(r.data, `${query}.pdf`))} className="toolbar-btn">⬇ PDF</button>
-                    <button onClick={handleReset} className="toolbar-btn">✕ Effacer</button>
+                    <button onClick={() => exportCSV(query).then((r) => downloadBlob(r.data, `${query}.csv`))} className="toolbar-btn">
+                      Export CSV
+                    </button>
+                    <button onClick={() => exportPDF(query).then((r) => downloadBlob(r.data, `${query}.pdf`))} className="toolbar-btn">
+                      Export PDF
+                    </button>
+                    <button onClick={handleReset} className="toolbar-btn">Effacer</button>
                   </div>
                 </div>
 
                 {resultsFiltered.length > 0 ? (
                   <div className="products-grid">
                     {resultsFiltered.map((p) => (
-                      <ProductCard key={p.id} produit={p} />
+                      <ProductCard key={p.id} produit={p} insight={productInsights[p.id]} />
                     ))}
                   </div>
                 ) : (
                   <div className="empty-state">
-                    Aucun résultat exact pour «&nbsp;{query}&nbsp;».<br />
-                    <small>Essayez un terme plus court ("iphone" au lieu de "iphone 15 pro max").</small>
+                    Aucun resultat exact pour "{query}".<br />
+                    <small>Essayez un terme plus court, par exemple "iphone" au lieu de "iphone 15 pro max".</small>
                   </div>
                 )}
               </>
@@ -194,11 +216,25 @@ export default function HomePage() {
           </>
         )}
 
-        {/* ── Mode accueil : catalogue ── */}
         {!searched && (
           <>
+            <div className="market-strip">
+              <div>
+                <strong>Acheter</strong>
+                <span>Des cartes produits avec prix, plateforme et lien vendeur.</span>
+              </div>
+              <div>
+                <strong>Comparer</strong>
+                <span>Des statistiques simples pour voir le prix juste.</span>
+              </div>
+              <div>
+                <strong>Verifier</strong>
+                <span>Des alertes pour reperer les prix trop beaux pour etre vrais.</span>
+              </div>
+            </div>
+
             <div className="section-header">
-              <h2 className="section-title">Sélection aléatoire</h2>
+              <h2 className="section-title">Produits disponibles</h2>
               <span className="section-count">
                 {loadingCat ? "..." : `${catalog.length} produits`}
               </span>
@@ -214,7 +250,7 @@ export default function HomePage() {
 
             {!loadingCat && catalog.length === 0 && (
               <div className="empty-state">
-                Aucun produit en base — le catalogue automatique va se remplir après les prochains scrapings.
+                Aucun produit en base. Le catalogue se remplit apres les prochaines recherches.
               </div>
             )}
 

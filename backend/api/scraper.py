@@ -418,9 +418,8 @@ def scrape_all(produit, plateformes=None):
     if not valide:
         return []
     if plateformes is None:
-        plateformes = ['jumia', 'avito', 'ebay']
+        plateformes = ['jumia', 'avito']
     resultats = []
     if 'jumia' in plateformes: resultats += scrape_jumia(produit)
     if 'avito' in plateformes: resultats += scrape_avito(produit)
-    if 'ebay'  in plateformes: resultats += scrape_ebay(produit)
     return resultats

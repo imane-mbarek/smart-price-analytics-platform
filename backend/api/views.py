@@ -9,7 +9,7 @@ from .serializers import (
     ProduitSerializer, RechercheSerializer, SurveillancePrixSerializer,
     RegisterSerializer, PanierSerializer, NotificationSerializer
 )
-from .scraper import scrape_jumia, scrape_avito, scrape_ebay, valider_categorie
+from .scraper import scrape_jumia, scrape_avito, valider_categorie
 from data_mining.api.dm_service import analyze
 import re, csv, threading, uuid
 from reportlab.pdfgen import canvas
@@ -18,7 +18,7 @@ from reportlab.lib.pagesizes import A4
 _progression = {}
 
 TAUX_CONVERSION = {'USD': 10.0, 'EUR': 10.8, 'GBP': 12.5, 'MAD': 1.0}
-PLATFORM_NAMES = {'jumia': 'Jumia', 'avito': 'Avito', 'ebay': 'eBay'}
+PLATFORM_NAMES = {'jumia': 'Jumia', 'avito': 'Avito'}
 
 
 def clean_price(prix_str):
@@ -131,7 +131,6 @@ def _scrape_background(task_id, query, plateformes_list):
         for plateforme, scraper in [
             ('jumia', scrape_jumia),
             ('avito', scrape_avito),
-            ('ebay',  scrape_ebay),
         ]:
             if plateforme in plateformes_list:
                 _progression[task_id]['message'] = f'Scraping {plateforme.capitalize()}...'
@@ -207,13 +206,13 @@ class ProduitViewSet(viewsets.ModelViewSet):
         except ValueError:
             limit = 12
 
-        produits = Produit.objects.filter(en_stock=True).order_by('?')[:limit]
+        produits = Produit.objects.filter(en_stock=True).exclude(plateforme='eBay').order_by('?')[:limit]
         return Response(ProduitSerializer(produits, many=True).data)
 
     @action(detail=False, methods=['get'])
     def search_async(self, request):
         query       = request.query_params.get('q', '').strip()
-        plateformes = request.query_params.get('plateformes', 'jumia,avito,ebay')
+        plateformes = request.query_params.get('plateformes', 'jumia,avito')
 
         if not query:
             return Response({'error': 'Paramètre q manquant'}, status=400)
@@ -222,7 +221,9 @@ class ProduitViewSet(viewsets.ModelViewSet):
         if not valide:
             return Response({'error': message}, status=400)
 
-        plateformes_list = [p.strip().lower() for p in plateformes.split(',')]
+        plateformes_list = [p.strip().lower() for p in plateformes.split(',') if p.strip().lower() in PLATFORM_NAMES]
+        if not plateformes_list:
+            return Response({'error': 'Aucune plateforme valide selectionnee'}, status=400)
         user = request.user if request.user.is_authenticated else None
         Recherche.objects.create(utilisateur=user, produit=query)
 
@@ -249,7 +250,7 @@ class ProduitViewSet(viewsets.ModelViewSet):
     def analyser(self, request):
         query    = request.query_params.get('q', '')
         cat      = request.query_params.get('categorie', '')
-        produits = Produit.objects.all()
+        produits = Produit.objects.exclude(plateforme='eBay')
         if query: produits = produits.filter(nom__icontains=query)
         if cat:   produits = produits.filter(categorie=cat)
         if not produits.exists():
@@ -260,6 +261,8 @@ class ProduitViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def by_platform(self, request):
         platform = request.query_params.get('platform', '')
+        if platform == 'eBay':
+            return Response([])
         return Response(ProduitSerializer(Produit.objects.filter(plateforme=platform), many=True).data)
 
     @action(detail=False, methods=['get'])
@@ -271,7 +274,9 @@ class ProduitViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def export_csv(self, request):
         query    = request.query_params.get('q', '')
-        produits = Produit.objects.filter(nom__icontains=query) if query else Produit.objects.all()
+        produits = Produit.objects.exclude(plateforme='eBay')
+        if query:
+            produits = produits.filter(nom__icontains=query)
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="produits.csv"'
         writer = csv.writer(response)
@@ -283,7 +288,9 @@ class ProduitViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def export_pdf(self, request):
         query    = request.query_params.get('q', '')
-        produits = Produit.objects.filter(nom__icontains=query) if query else Produit.objects.all()
+        produits = Produit.objects.exclude(plateforme='eBay')
+        if query:
+            produits = produits.filter(nom__icontains=query)
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = 'attachment; filename="produits.pdf"'
         c    = canvas.Canvas(response, pagesize=A4)

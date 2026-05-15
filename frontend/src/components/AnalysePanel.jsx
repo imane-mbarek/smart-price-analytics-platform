@@ -1,15 +1,23 @@
 // src/components/AnalysePanel.jsx
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  ComposedChart, Cell, ScatterChart, Scatter, LineChart, Line,
+  Cell, ScatterChart, Scatter, LineChart, Line,
 } from "recharts";
 
-const PLATFORM_COLORS = { Jumia: "#F97316", Avito: "#EF4444", eBay: "#8B5CF6" };
+const PLATFORM_COLORS = { Jumia: "#F97316", Avito: "#EF4444" };
 const RANGE_COLORS = { bas: "#10b981", milieu: "#6366f1", haut: "#f59e0b" };
 const ALERT_COLORS = { vert: "#10b981", orange: "#f59e0b", rouge: "#ef4444" };
 
 const money = (v) => v != null && !Number.isNaN(Number(v)) ? `${Math.round(Number(v))} MAD` : "-";
 const num = (v, digits = 2) => v != null && !Number.isNaN(Number(v)) ? Number(v).toFixed(digits) : "-";
+
+function countBy(list, getKey) {
+  return list.reduce((acc, item) => {
+    const key = getKey(item) || "Inconnu";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
 
 function normalizeStats(analyse, produits) {
   const stats = analyse?.stats || {};
@@ -94,6 +102,30 @@ function PlatformChart({ produits, analyse }) {
   );
 }
 
+function CategoryChart({ produits, analyse }) {
+  const distribution = analyse?.stats?.distribution_categorie;
+  const data = distribution
+    ? Object.entries(distribution).map(([name, count]) => ({ name, count }))
+    : Object.entries(countBy(produits, (p) => p.categorie)).map(([name, count]) => ({ name, count }));
+
+  if (!data.length || (data.length === 1 && data[0].name === "Inconnu")) return null;
+
+  return (
+    <div className="analyse-card">
+      <h4 className="analyse-title">Distribution par categorie</h4>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 11 }} />
+          <Tooltip formatter={(v) => [`${v} offre(s)`, ""]} />
+          <Bar dataKey="count" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function Stats({ analyse, produits }) {
   const s = normalizeStats(analyse, produits);
   const items = [
@@ -121,6 +153,159 @@ function Stats({ analyse, produits }) {
   );
 }
 
+function ClientSummary({ analyse, produits }) {
+  const s = normalizeStats(analyse, produits);
+  const anomalies = analyse?.anomalies || [];
+  const clusters = analyse?.clusters || [];
+  const red = anomalies.filter((item) => item.niveau === "rouge").length;
+  const orange = anomalies.filter((item) => item.niveau === "orange").length;
+  const bestRange = clusters.filter((item) => item.gamme === "bas").length;
+  const normalOffers = anomalies.filter((item) => item.niveau === "vert").length || produits.length - red - orange;
+
+  const cards = [
+    {
+      label: "Prix conseille",
+      value: money(s.median ?? s.mean),
+      detail: "Reference robuste pour comparer les offres.",
+      tone: "blue",
+    },
+    {
+      label: "Offres abordables",
+      value: bestRange,
+      detail: "Produits classes dans la gamme basse par K-Means.",
+      tone: "green",
+    },
+    {
+      label: "Prix a verifier",
+      value: orange + red,
+      detail: `${red} alerte rouge, ${orange} alerte orange.`,
+      tone: red ? "red" : "orange",
+    },
+    {
+      label: "Offres normales",
+      value: Math.max(normalOffers, 0),
+      detail: "Non signalees par les detecteurs d'anomalies.",
+      tone: "slate",
+    },
+  ];
+
+  return (
+    <div className="client-summary">
+      {cards.map((card) => (
+        <div key={card.label} className={`summary-tile summary-${card.tone}`}>
+          <span className="summary-label">{card.label}</span>
+          <strong>{card.value}</strong>
+          <small>{card.detail}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WorkflowPanel({ analyse, produits }) {
+  const metadata = analyse?.metadata || {};
+  const modules = [
+    {
+      step: "01",
+      title: "Nettoyage",
+      text: "Doublons, prix vides, noms manquants et prix invalides sont retires avant l'analyse.",
+      value: metadata.clean_rows != null ? `${metadata.clean_rows} lignes propres` : `${produits.length} offres`,
+    },
+    {
+      step: "02",
+      title: "Normalisation",
+      text: "Les devises sont ramenees en MAD, puis les prix et variables utiles sont standardises.",
+      value: `${metadata.features?.length || 0} features`,
+    },
+    {
+      step: "03",
+      title: "Statistiques",
+      text: "Min, max, moyenne, mediane, quartiles, variance et repartition par plateforme.",
+      value: analyse?.stats ? "calculees" : "fallback local",
+    },
+    {
+      step: "04",
+      title: "Clustering",
+      text: "K-Means separe les offres en bas, milieu et haut de gamme; DBSCAN isole les groupes denses.",
+      value: `${analyse?.clusters?.length || 0} labels`,
+    },
+    {
+      step: "05",
+      title: "Anomalies",
+      text: "Isolation Forest et LOF donnent un niveau vert, orange ou rouge pour chaque offre.",
+      value: `${analyse?.anomalies?.length || 0} scores`,
+    },
+    {
+      step: "06",
+      title: "Associations",
+      text: "Les regles expliquent les liens entre plateforme, marque, etat, categorie et tranche de prix.",
+      value: `${analyse?.rules?.length || 0} regles`,
+    },
+  ];
+
+  return (
+    <div className="workflow-grid">
+      {modules.map((module) => (
+        <div key={module.step} className="workflow-card">
+          <span className="workflow-step">{module.step}</span>
+          <div>
+            <h4>{module.title}</h4>
+            <p>{module.text}</p>
+            <strong>{module.value}</strong>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecommendedOffers({ produits, analyse }) {
+  const clustersById = Object.fromEntries((analyse?.clusters || []).map((item) => [item.offre_id, item]));
+  const anomaliesById = Object.fromEntries((analyse?.anomalies || []).map((item) => [item.offre_id, item]));
+  const median = analyse?.stats?.median;
+
+  const rows = produits
+    .map((produit) => {
+      const cluster = clustersById[produit.id] || {};
+      const anomaly = anomaliesById[produit.id] || {};
+      const price = Number(produit.prix);
+      const score = (cluster.gamme === "bas" ? 2 : cluster.gamme === "milieu" ? 1 : 0)
+        + (anomaly.niveau === "vert" ? 2 : anomaly.niveau === "orange" ? 1 : 0)
+        - (median && price > median ? 1 : 0);
+
+      return {
+        ...produit,
+        gamme: cluster.gamme || "-",
+        niveau: anomaly.niveau || "vert",
+        ecart: median && Number.isFinite(price) ? Math.round(((price - median) / median) * 100) : null,
+        score,
+      };
+    })
+    .sort((a, b) => b.score - a.score || Number(a.prix) - Number(b.prix))
+    .slice(0, 5);
+
+  if (!rows.length) return null;
+
+  return (
+    <div className="analyse-card analyse-card-wide recommendation-card">
+      <h4 className="analyse-title">Meilleures options pour le client</h4>
+      <div className="recommendation-list">
+        {rows.map((row, index) => (
+          <div key={row.id || row.nom} className="recommendation-row">
+            <span className="recommendation-rank">#{index + 1}</span>
+            <div className="recommendation-main">
+              <strong>{row.nom}</strong>
+              <small>{row.plateforme} - {row.gamme} - {row.ecart == null ? "prix compare" : `${row.ecart <= 0 ? "" : "+"}${row.ecart}% vs marche`}</small>
+            </div>
+            <span className={`alert-badge alert-${row.niveau}`}>{row.niveau}</span>
+            <b>{money(row.prix)}</b>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Metadata({ analyse }) {
   const metadata = analyse?.metadata;
   if (!metadata) return null;
@@ -132,6 +317,7 @@ function Metadata({ analyse }) {
         <span>Lignes brutes <strong>{metadata.rows ?? "-"}</strong></span>
         <span>Lignes propres <strong>{metadata.clean_rows ?? "-"}</strong></span>
         <span>Features <strong>{metadata.features?.length || 0}</strong></span>
+        <span>Devise cible <strong>MAD</strong></span>
       </div>
       {!!metadata.features?.length && (
         <div className="feature-list">
@@ -143,6 +329,7 @@ function Metadata({ analyse }) {
 }
 
 function KmeansPanel({ analyse }) {
+  const apiCentroids = analyse?.kmeans?.centroids || [];
   const centroids = analyse?.clusters?.reduce((acc, item) => {
     const key = item.cluster;
     if (!acc[key]) acc[key] = { cluster: key, gamme: item.gamme, count: 0, sum: 0 };
@@ -151,10 +338,15 @@ function KmeansPanel({ analyse }) {
     return acc;
   }, {});
 
-  const data = Object.values(centroids || {}).map((item) => ({
-    ...item,
-    prix_moyen: item.count ? item.sum / item.count : 0,
-  }));
+  const data = apiCentroids.length
+    ? apiCentroids.map((item) => ({
+        ...item,
+        count: analyse?.clusters?.filter((cluster) => cluster.cluster === item.cluster).length || 0,
+      }))
+    : Object.values(centroids || {}).map((item) => ({
+        ...item,
+        prix_moyen: item.count ? item.sum / item.count : 0,
+      }));
 
   if (!data.length) return null;
 
@@ -206,6 +398,7 @@ function DbscanPanel({ analyse }) {
 function PcaPanel({ analyse }) {
   const data = analyse?.pca || [];
   if (!data.length) return null;
+  const clusterMeta = Object.fromEntries((analyse?.clusters || []).map((item) => [item.offre_id, item]));
 
   return (
     <div className="analyse-card">
@@ -221,9 +414,10 @@ function PcaPanel({ analyse }) {
             labelFormatter={(_, payload) => payload?.[0]?.payload?.nom || ""}
           />
           <Scatter data={data}>
-            {data.map((point, index) => (
-              <Cell key={`${point.offre_id}-${index}`} fill={RANGE_COLORS[point.gamme] || "#818cf8"} />
-            ))}
+            {data.map((point, index) => {
+              const gamme = point.gamme || clusterMeta[point.offre_id]?.gamme;
+              return <Cell key={`${point.offre_id}-${index}`} fill={RANGE_COLORS[gamme] || "#818cf8"} />;
+            })}
           </Scatter>
         </ScatterChart>
       </ResponsiveContainer>
@@ -375,6 +569,33 @@ function EnrichedProducts({ analyse }) {
   );
 }
 
+function DecisionGuide({ analyse }) {
+  if (!analyse) return null;
+
+  return (
+    <div className="analyse-card analyse-card-wide decision-guide">
+      <h4 className="analyse-title">Lecture rapide pour le client</h4>
+      <div className="decision-grid">
+        <div>
+          <span className="decision-dot decision-green" />
+          <strong>Vert</strong>
+          <p>Prix coherent avec le marche observe.</p>
+        </div>
+        <div>
+          <span className="decision-dot decision-orange" />
+          <strong>Orange</strong>
+          <p>Un algorithme trouve le prix atypique: comparer vendeur, etat et fiche produit.</p>
+        </div>
+        <div>
+          <span className="decision-dot decision-red" />
+          <strong>Rouge</strong>
+          <p>Isolation Forest et LOF signalent le prix: risque eleve d'offre douteuse.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AnalysePanel({ produits, analyse, query }) {
   if (!produits?.length) return null;
 
@@ -382,17 +603,21 @@ export default function AnalysePanel({ produits, analyse, query }) {
     <section className="analyse-section">
       <div className="analyse-header">
         <h2 className="analyse-main-title">
-          Analyse data mining - <em>{query}</em>
+          Tableau d'aide a la decision - <em>{query}</em>
         </h2>
         <span className="analyse-count">{produits.length} offres collectees</span>
       </div>
 
+      <ClientSummary produits={produits} analyse={analyse} />
+      {analyse && <RecommendedOffers produits={produits} analyse={analyse} />}
+      <WorkflowPanel produits={produits} analyse={analyse} />
       <Stats produits={produits} analyse={analyse} />
       {analyse && <Metadata analyse={analyse} />}
 
       <div className="analyse-charts">
         <Histogram produits={produits} />
         <PlatformChart produits={produits} analyse={analyse} />
+        <CategoryChart produits={produits} analyse={analyse} />
         {analyse && <KmeansPanel analyse={analyse} />}
         {analyse && <DbscanPanel analyse={analyse} />}
         {analyse && <PcaPanel analyse={analyse} />}
@@ -400,6 +625,7 @@ export default function AnalysePanel({ produits, analyse, query }) {
         {analyse && <AnomaliesPanel analyse={analyse} />}
         {analyse && <RulesPanel analyse={analyse} />}
         {analyse && <EnrichedProducts analyse={analyse} />}
+        {analyse && <DecisionGuide analyse={analyse} />}
       </div>
     </section>
   );

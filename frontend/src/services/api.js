@@ -26,7 +26,7 @@ api.interceptors.response.use(
 // ── Produits ──────────────────────────────────────────────────────────
 export const getAllProduits     = ()               => publicApi.get("/produits/");
 export const getAccueilProduits = (limit = 12)     => publicApi.get("/produits/accueil/", { params: { limit } });
-export const lancerRecherche    = (q, plateformes) => publicApi.get("/produits/search_async/", { params: { q, plateformes: plateformes.join(",") } });
+export const lancerRecherche    = (q, plateformes) => api.get("/produits/search_async/", { params: { q, plateformes: plateformes.join(",") } });
 export const getProgression     = (taskId)         => publicApi.get("/produits/progression/",   { params: { task_id: taskId } });
 export const getAnalyse         = (q)              => publicApi.get("/produits/analyser/",      { params: { q } });
 export const exportCSV          = (q)              => publicApi.get("/produits/export_csv/",    { params: { q }, responseType: "blob" });

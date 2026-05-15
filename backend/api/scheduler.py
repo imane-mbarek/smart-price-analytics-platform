@@ -16,7 +16,7 @@ _timer = None
 
 def _scrape_periodique():
     from .models import Produit, Panier, Notification, HistoriquePrix
-    from .scraper import scrape_jumia, scrape_avito, scrape_ebay, PRODUITS_PERIODIQUES
+    from .scraper import scrape_jumia, scrape_avito, PRODUITS_PERIODIQUES
     from .views import clean_price
 
     logger.info(f"[Scheduler] Démarrage — {datetime.now():%H:%M %d/%m/%Y}")
@@ -28,7 +28,7 @@ def _scrape_periodique():
     for terme in termes:
         nouveaux = []
         # Alterner les plateformes pour avoir de la diversité
-        for scraper in [scrape_jumia, scrape_avito, scrape_ebay]:
+        for scraper in [scrape_jumia, scrape_avito]:
             try:
                 nouveaux += scraper(terme, limit=5)  # 5 par plateforme max
             except Exception as e:
