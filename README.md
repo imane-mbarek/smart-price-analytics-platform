@@ -14,7 +14,7 @@ Voici une démonstration complète du projet en action :
 
 ### Vidéo de démonstration
 
-[![Watch Demo](https://img.youtube.com/vi/AbCdEf12345/maxresdefault.jpg)]([https://www.youtube.com/watch?v=AbCdEf12345](https://youtu.be/ILcWTTgpHxg))
+[![Watch Demo](https://img.youtube.com/vi/AbCdEf12345/maxresdefault.jpg)](https://youtu.be/ILcWTTgpHxg))
 
 ### Ce que vous verrez dans la vidéo :
 
