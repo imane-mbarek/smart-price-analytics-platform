@@ -1,3 +1,5 @@
+
+
 # 🛍️ Smart Price Analytics Platform
 
 > **Un comparateur de prix intelligent pour l'e-commerce marocain**
@@ -14,8 +16,6 @@ Voici une démonstration complète du projet en action :
   <source src="https://github.com/imane-mbarek/smart-price-analytics-platform/raw/main/demo-video.mp4" type="video/mp4">
   Votre navigateur ne supporte pas la lecture vidéo.
 </video>
-
-> 📹 **Fichier vidéo local :** `../Enregistrement site web .mp4`
 
 ### Ce que vous verrez dans la vidéo :
 
