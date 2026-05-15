@@ -14,10 +14,7 @@ Voici une démonstration complète du projet en action :
 
 ### Vidéo de démonstration
 
-<video width="100%" height="auto" controls style="border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-  <source src="https://github.com/imane-mbarek/smart-price-analytics-platform/Enregistrement site web.mp4" type="video/mp4">
-  Votre navigateur ne supporte pas la lecture vidéo.
-</video>
+[![Watch Demo](https://img.youtube.com/vi/AbCdEf12345/maxresdefault.jpg)]([https://www.youtube.com/watch?v=AbCdEf12345](https://youtu.be/ILcWTTgpHxg))
 
 ### Ce que vous verrez dans la vidéo :
 
